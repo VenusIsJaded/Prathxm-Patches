@@ -65,7 +65,7 @@ public class StockfishSettingsDialog {
 
         int currentDepth = StockfishSettings.getDepth(activity);
         TextView depthLabel = addStyledLabel(rootLayout, "Analysis Depth: " + currentDepth, density, activity);
-        SeekBar depthSeekBar = addStyledSeekBar(rootLayout, depthLabel, "Analysis Depth", currentDepth - 1, 19, 1, density, activity);
+        SeekBar depthSeekBar = addStyledSeekBar(rootLayout, depthLabel, "Analysis Depth", currentDepth - 1, StockfishSettings.MAX_DEPTH - 1, 1, density, activity);
 
         CheckBox arrowsCb = addStyledCheckbox(rootLayout, "Show Best Move Arrows", StockfishSettings.isArrowsVisible(activity), density, activity);
         CheckBox evalBarCb = addStyledCheckbox(rootLayout, "Show Evaluation Bar", StockfishSettings.isEvalBarEnabled(activity), density, activity);
@@ -106,12 +106,22 @@ public class StockfishSettingsDialog {
         TextView pvLabel = addStyledLabel(advancedLayout, "MultiPV (Best moves): " + currentPV, density, activity);
         SeekBar pvSeekBar = addStyledSeekBar(advancedLayout, pvLabel, "MultiPV (Best moves to show)", currentPV - 1, 4, 1, density, activity);
 
+        // Engine power
+        final int cpuCount = StockfishSettings.getCpuCount();
+        int currentThreads = StockfishSettings.getThreads(activity);
+        TextView threadsLabel = addStyledLabel(advancedLayout, "CPU Threads (max " + cpuCount + "): " + currentThreads, density, activity);
+        SeekBar threadsSeekBar = addStyledSeekBar(advancedLayout, threadsLabel, "CPU Threads (max " + cpuCount + ")", currentThreads - 1, Math.max(0, cpuCount - 1), 1, density, activity);
+
+        int currentBoost = StockfishSettings.getReviewDepthBoost(activity);
+        TextView boostLabel = addStyledLabel(advancedLayout, "Game Review Extra Depth: " + currentBoost, density, activity);
+        SeekBar boostSeekBar = addStyledSeekBar(advancedLayout, boostLabel, "Game Review Extra Depth", currentBoost, 10, 0, density, activity);
+
         CheckBox sideCb = addStyledCheckbox(advancedLayout, "Show Arrows Only on My Turn", StockfishSettings.isMySideOnly(activity), density, activity);
         
         CheckBox eloCb = addStyledCheckbox(advancedLayout, "Limit Engine Elo Strength", StockfishSettings.isLimitStrength(activity), density, activity);
         int currentElo = StockfishSettings.getElo(activity);
         TextView eloLabel = addStyledLabel(advancedLayout, "Engine Elo: " + currentElo, density, activity);
-        SeekBar eloSeekBar = addStyledSeekBar(advancedLayout, eloLabel, "Engine Elo", currentElo - 1350, 1500, 1350, density, activity);
+        SeekBar eloSeekBar = addStyledSeekBar(advancedLayout, eloLabel, "Engine Elo", Math.max(0, currentElo - 1320), 3190 - 1320, 1320, density, activity);
         
         eloLabel.setEnabled(eloCb.isChecked());
         eloSeekBar.setEnabled(eloCb.isChecked());
@@ -212,9 +222,13 @@ public class StockfishSettingsDialog {
             StockfishSettings.setEngineEnabled(activity, enabledCb.isChecked());
             StockfishSettings.setDepth(activity, Math.max(1, depthSeekBar.getProgress() + 1));
             StockfishSettings.setMultiPV(activity, Math.max(1, pvSeekBar.getProgress() + 1));
+            int threads = Math.max(1, threadsSeekBar.getProgress() + 1);
+            // Store 0 (= auto, all cores) when the maximum is selected.
+            StockfishSettings.setThreads(activity, threads >= cpuCount ? 0 : threads);
+            StockfishSettings.setReviewDepthBoost(activity, boostSeekBar.getProgress());
             StockfishSettings.setMySideOnly(activity, sideCb.isChecked());
             StockfishSettings.setLimitStrength(activity, eloCb.isChecked());
-            StockfishSettings.setElo(activity, 1350 + eloSeekBar.getProgress());
+            StockfishSettings.setElo(activity, 1320 + eloSeekBar.getProgress());
             StockfishSettings.setAdsRemoved(activity, adsCb.isChecked());
             StockfishSettings.setPremiumEnabled(activity, true);
             StockfishSettings.setArrowsVisible(activity, arrowsCb.isChecked());
