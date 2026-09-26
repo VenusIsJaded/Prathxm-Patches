@@ -44,11 +44,14 @@ public final class ReviewMath {
 
     /**
      * Win probability (0..1) for WHITE from an evaluation in pawns (white POV).
-     * Lichess logistic model; mate scores (|score| >= 90) map to 0 / 1.
+     * Lichess logistic model. Mate scores are encoded as +/-(99 - n) pawns, so anything at or
+     * beyond +/-MATE_THRESHOLD is a forced mate (or tablebase win) and maps to exactly 0 / 1.
      */
+    public static final float MATE_THRESHOLD = 50f;
+
     public static float whiteWin(float score) {
-        if (score >= 90f) return 1f;
-        if (score <= -90f) return 0f;
+        if (score >= MATE_THRESHOLD) return 1f;
+        if (score <= -MATE_THRESHOLD) return 0f;
         double cp = Math.max(-1000.0, Math.min(1000.0, score * 100.0));
         return (float) (1.0 / (1.0 + Math.exp(-0.00368208 * cp)));
     }
