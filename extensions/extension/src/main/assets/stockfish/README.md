@@ -1,30 +1,14 @@
 # Stockfish Native Binaries
 
-Place the extracted Stockfish executables here BEFORE building:
-
-## Required files
+The binaries are downloaded automatically by `.github/scripts/download_stockfish.sh`
+(Stockfish 19) and bundled by the patch as `lib/<abi>/libstockfish.so`:
 
 ```
-arm64-v8a/stockfish      ← from stockfish-android-armv8-dotprod.tar
-armeabi-v7a/stockfish    ← from stockfish-android-armv7-neon.tar
+patches/src/main/resources/stockfish/arm64-v8a/stockfish    <- stockfish-android-arm64-universal
+patches/src/main/resources/stockfish/armeabi-v7a/stockfish  <- stockfish-android-armv7-neon
 ```
 
-## How to extract
+SHA-256 of the release archives (verified by the script):
 
-```bash
-# arm64 (modern phones)
-tar -xf stockfish-android-armv8-dotprod.tar
-cp stockfish arm64-v8a/stockfish
-
-# armv7 (older phones)
-tar -xf stockfish-android-armv7-neon.tar
-cp stockfish armeabi-v7a/stockfish
-```
-
-## Verify SHA-256 hashes (from Stockfish release page)
-
-- armv8-dotprod: 8f7116d3f1a7004a6581d4fb0c1ff891ce095bab6d45e52f1578897cf23b61b5
-- armv7-neon:    672fbd7533d15fc70dae82df52c1185236975d059a585aa65eda960f1a3266ea
-
-After placing the binaries, run:
-  ./gradlew :extensions:extension:assembleRelease
+- arm64-universal: ebb24051aa4a222b4daaf049b882ecf1163d370c128fe02316602643f4d5e426
+- armv7-neon:      47c34963f1cdf4a6af34c1b5294f7a4e2679b3eb52698c324855af2c6486024b

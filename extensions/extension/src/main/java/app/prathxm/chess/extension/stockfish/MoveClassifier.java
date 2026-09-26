@@ -212,43 +212,30 @@ public class MoveClassifier {
 
             String uciMove = deduceUciMove(prevKey, currentKey);
             
-            String classification = "Good Move";
-            String emoji = "👍";
-            boolean isBlunderOrMistake = false;
+            // Same expected-points model as the game review (win probability, mover POV).
+            float winBefore = ReviewMath.win(prevEval, whiteMoved);
+            float winAfter = ReviewMath.win(currentEval, whiteMoved);
+            boolean isBest = uciMove != null && uciMove.equals(prevBestMoves.get(0));
+            boolean deliversMate = currentResult.terminal && currentResult.hasMate;
+            float loss = (isBest || deliversMate) ? 0f : Math.max(0f, winBefore - winAfter);
+            String c = ReviewMath.classify(isBest || deliversMate, false, loss, winBefore, winAfter,
+                    -1f, false, false, -1f, false);
 
-            if (uciMove != null && !prevBestMoves.isEmpty() && uciMove.equals(prevBestMoves.get(0))) {
-                if (delta > 1.0f) {
-                    classification = "Brilliant";
-                    emoji = "💡";
-                } else {
-                    classification = "Best Move";
-                    emoji = "🎯";
-                }
-            } else if (uciMove != null && prevBestMoves.contains(uciMove)) {
-                classification = "Excellent";
-                emoji = "✨";
-            } else {
-                if (delta < -3.0f) {
-                    classification = "Blunder";
-                    emoji = "💀";
-                    isBlunderOrMistake = true;
-                } else if (delta < -1.5f) {
-                    classification = "Mistake";
-                    emoji = "❌";
-                    isBlunderOrMistake = true;
-                } else if (delta < -0.5f) {
-                    classification = "Inaccuracy";
-                    emoji = "⚠️";
-                } else if (delta < -0.1f) {
-                    classification = "Good Move";
-                    emoji = "👍";
-                } else {
-                    classification = "Great Move";
-                    emoji = "✅";
-                }
+            String classification;
+            String emoji;
+            boolean isBlunderOrMistake = false;
+            switch (c) {
+                case ReviewMath.BEST: classification = "Best Move"; emoji = "🎯"; break;
+                case ReviewMath.EXCELLENT: classification = "Excellent"; emoji = "✨"; break;
+                case ReviewMath.GOOD: classification = "Good Move"; emoji = "👍"; break;
+                case ReviewMath.INACCURACY: classification = "Inaccuracy"; emoji = "⚠️"; break;
+                case ReviewMath.MISTAKE: classification = "Mistake"; emoji = "❌"; isBlunderOrMistake = true; break;
+                case ReviewMath.BLUNDER: classification = "Blunder"; emoji = "💀"; isBlunderOrMistake = true; break;
+                case ReviewMath.MISS: classification = "Miss"; emoji = "❎"; isBlunderOrMistake = true; break;
+                default: classification = "Good Move"; emoji = "👍"; break;
             }
 
-            final String toastText = emoji + " " + classification + (uciMove != null ? " (" + uciMove + ")" : "") + String.format(" [Delta: %.1f]", delta);
+            final String toastText = emoji + " " + classification + (uciMove != null ? " (" + uciMove + ")" : "") + String.format(java.util.Locale.US, " [-%.0f%%]", loss * 100f);
             final boolean triggerVibrate = isBlunderOrMistake;
 
             if (activity != null) {

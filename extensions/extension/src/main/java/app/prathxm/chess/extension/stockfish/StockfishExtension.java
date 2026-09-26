@@ -313,7 +313,18 @@ public class StockfishExtension {
         }
     }
 
+    /** Position (FEN key) of the most recently scheduled live analysis. */
+    private static volatile String lastScheduledKey = null;
+
     private static void scheduleAnalysis(String fen) {
+        // The board callback fires several times for the same position (move animation,
+        // arrow updates, re-renders). Restarting an identical search each time just burns CPU.
+        String posKey = StockfishBridge.positionKey(fen);
+        Future<?> running = currentJob;
+        if (posKey != null && posKey.equals(lastScheduledKey) && running != null && !running.isDone()) {
+            return;
+        }
+        lastScheduledKey = posKey;
         Future<?> prev = currentJob;
         if (prev != null && !prev.isDone()) {
             prev.cancel(true);

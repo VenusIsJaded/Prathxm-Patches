@@ -38,8 +38,42 @@ public class StockfishSettings {
         getPrefs(context).edit().putBoolean(KEY_ENGINE_ENABLED, enabled).apply();
     }
 
+    /** Max selectable live-analysis depth. */
+    public static final int MAX_DEPTH = 40;
+
     public static int getDepth(Context context) {
-        return getPrefs(context).getInt(KEY_DEPTH, 14);
+        return Math.max(1, Math.min(MAX_DEPTH, getPrefs(context).getInt(KEY_DEPTH, 18)));
+    }
+
+    // ── Engine power ─────────────────────────────────────────────────────────
+
+    private static final String KEY_THREADS = "engine_threads";
+
+    public static int getCpuCount() {
+        return Math.max(1, Runtime.getRuntime().availableProcessors());
+    }
+
+    /** Search threads; defaults to every CPU core (stored 0 = auto). */
+    public static int getThreads(Context context) {
+        int t = getPrefs(context).getInt(KEY_THREADS, 0);
+        int cpus = getCpuCount();
+        if (t <= 0) return cpus;
+        return Math.min(t, cpus);
+    }
+
+    public static void setThreads(Context context, int threads) {
+        getPrefs(context).edit().putInt(KEY_THREADS, Math.max(0, threads)).apply();
+    }
+
+    private static final String KEY_REVIEW_BOOST = "review_depth_boost";
+
+    /** Extra depth added on top of the Chess.com game review depth preset. */
+    public static int getReviewDepthBoost(Context context) {
+        return Math.max(0, Math.min(10, getPrefs(context).getInt(KEY_REVIEW_BOOST, 0)));
+    }
+
+    public static void setReviewDepthBoost(Context context, int boost) {
+        getPrefs(context).edit().putInt(KEY_REVIEW_BOOST, Math.max(0, Math.min(10, boost))).apply();
     }
 
     public static void setDepth(Context context, int depth) {
