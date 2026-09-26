@@ -319,12 +319,12 @@ public class StockfishExtension {
     private static void scheduleAnalysis(String fen) {
         // The board callback fires several times for the same position (move animation,
         // arrow updates, re-renders). Restarting an identical search each time just burns CPU.
-        String key = StockfishBridge.positionKey(fen);
+        String posKey = StockfishBridge.positionKey(fen);
         Future<?> running = currentJob;
-        if (key != null && key.equals(lastScheduledKey) && running != null && !running.isDone()) {
+        if (posKey != null && posKey.equals(lastScheduledKey) && running != null && !running.isDone()) {
             return;
         }
-        lastScheduledKey = key;
+        lastScheduledKey = posKey;
         Future<?> prev = currentJob;
         if (prev != null && !prev.isDone()) {
             prev.cancel(true);
