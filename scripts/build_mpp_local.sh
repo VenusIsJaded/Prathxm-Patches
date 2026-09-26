@@ -73,9 +73,9 @@ java -jar baksmali.jar d bundle/classes.dex -o patchsmali
 java -jar baksmali.jar d d8out/classes.dex -o newsmali
 missing=0
 while read -r sig; do
-  sig="${sig%n}"; cls="${sig%%;->*}"; m="${sig#*;->}"
+  sig="${sig%n}"; sig="${sig%\\}"; cls="${sig%%;->*}"; m="${sig#*;->}"
   grep -qF " ${m%%(*}(${m#*(}" "newsmali/${cls#L}.smali" 2>/dev/null || { echo "MISSING: $sig"; missing=1; }
-done < <(grep -rho 'Lapp/prathxm/chess/extension/[A-Za-z/]*;->[A-Za-z]*([^)]*)[^ "]*' patchsmali | sort -u)
+done < <(grep -rhoE 'Lapp/prathxm/chess/extension/[A-Za-z/]*;->[A-Za-z]*\([^)]*\)(\[*L[A-Za-z/$]*;|\[*[VZBSCIJFD])' patchsmali | sort -u)
 [ "$missing" = 0 ] || { echo "Extension API mismatch"; exit 1; }
 
 echo "== Assembling bundle"
