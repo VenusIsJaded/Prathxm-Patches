@@ -24,7 +24,7 @@ import java.util.Map;
 public class Harness {
     private static int fails = 0;
 
-    private static void check(String name, boolean ok, Object detail) {
+    static void check(String name, boolean ok, Object detail) {
         String d = detail == null ? "" : String.valueOf(detail);
         if (d.length() > 220) d = d.substring(0, 220) + "…";
         System.out.println((ok ? "PASS " : "FAIL ") + name + (d.isEmpty() ? "" : "  -> " + d));
