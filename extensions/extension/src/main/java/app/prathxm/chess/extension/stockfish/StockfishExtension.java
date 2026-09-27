@@ -352,22 +352,30 @@ public class StockfishExtension {
                 // Stream intermediate depths to the board so deep searches feel instant.
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
+                            // Keep intermediate evaluations for the move classifier even if the
+                            // search is cancelled later (see MoveClassifier.recordResult).
+                            MoveClassifier.recordResult(fen, partial);
                             if (isStale(jobKey)) return;
                             displayLiveResult(context, fen, partial, false);
                         });
 
-                // The user moved on while we were searching: never paint an outdated result.
-                if (isStale(jobKey)) return;
+                MoveClassifier.recordResult(fen, result);
 
-                if (result.moves.isEmpty()) {
-                    Log.d(TAG, "Engine returned no best moves.");
+                // The user moved on while we were searching: never paint an outdated result,
+                // but still rate the move that led here with the deepest result reached, so
+                // the toast is not lost when the opponent replies quickly.
+                if (isStale(jobKey)) {
+                    if (MoveClassifier.isUsableForRating(result)) {
+                        MoveClassifier.classifyMoveIfPossible(context, fen, result);
+                    }
                     return;
                 }
 
-                String key = MoveClassifier.getFenKey(fen);
-                if (key != null) {
-                    MoveClassifier.getFenToEvalMap().put(key, result.score);
-                    MoveClassifier.getFenToBestMovesMap().put(key, result.moves);
+                if (result.moves.isEmpty()) {
+                    // Checkmate / stalemate: still rate the move that produced it.
+                    if (result.terminal) MoveClassifier.classifyMoveIfPossible(context, fen, result);
+                    Log.d(TAG, "Engine returned no best moves.");
+                    return;
                 }
 
                 MoveClassifier.classifyMoveIfPossible(context, fen, result);
