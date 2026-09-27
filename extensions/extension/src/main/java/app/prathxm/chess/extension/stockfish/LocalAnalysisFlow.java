@@ -53,15 +53,18 @@ public class LocalAnalysisFlow {
                 new InvocationHandler() {
                     @Override
                     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                        if (method.getName().equals("collect")) {
-                            // args[0] is the flow collector (a84)
-                            // args[1] is the continuation (o02)
-                            runCollect(types, pgn, analysisDepthObj, args[0], args[1]);
-                            return getUnitInstance();
+                        if (method.getName().equals("collect") && args != null && args.length == 2) {
+                            // collect(collector, continuation) is a suspend function: run the
+                            // review on a worker thread, suspend the caller and resume it when
+                            // the review has finished (see FlowBridge).
+                            return FlowBridge.collect(types, args[0], args[1], "stockfish-review",
+                                    emitter -> runCollect(types, pgn, analysisDepthObj, emitter));
                         }
                         if (method.getName().equals("toString")) {
-                            return "LocalAnalysisFlow(" + pgn + ")";
+                            return "LocalAnalysisFlow(" + (pgn != null ? pgn.length() : 0) + " chars)";
                         }
+                        if (method.getName().equals("hashCode")) return System.identityHashCode(proxy);
+                        if (method.getName().equals("equals")) return args != null && proxy == args[0];
                         return null;
                     }
                 }
@@ -72,37 +75,10 @@ public class LocalAnalysisFlow {
         }
     }
 
-    private static void runCollect(AppTypes types, String pgn, Object analysisDepthObj, Object collector, Object continuation) {
+    private static void runCollect(AppTypes types, String pgn, Object analysisDepthObj,
+                                   FlowBridge.Emitter emitter) throws Throwable {
         StockfishExtension.isReviewMode = true;
         Activity activity = StockfishExtension.getCurrentActivity();
-                Object dummyContinuation = null;
-        try {
-            Class<?> o02Class = types.continuationClass;
-            dummyContinuation = Proxy.newProxyInstance(
-                o02Class.getClassLoader(),
-                new Class<?>[]{o02Class},
-                new InvocationHandler() {
-                    @Override
-                    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-                        if (method.getName().equals("getContext")) {
-                            Class<?> eccClass = Class.forName("kotlin.coroutines.EmptyCoroutineContext");
-                            Object eccInstance = null;
-                            for (Field f : eccClass.getDeclaredFields()) {
-                                if (f.getType().equals(eccClass) && java.lang.reflect.Modifier.isStatic(f.getModifiers())) {
-                                    f.setAccessible(true);
-                                    eccInstance = f.get(null);
-                                    break;
-                                }
-                            }
-                            return eccInstance;
-                        }
-                        return null;
-                    }
-                }
-            );
-        } catch (Throwable t) {
-            Log.e(TAG, "Failed to initialize dummy continuation", t);
-        }
         try {
             // Fair Play Gating: Prevent any local analysis during active live match
             if (activity != null && StockfishExtension.isLiveMatch(activity) && !StockfishExtension.isReviewMode) {
@@ -129,7 +105,6 @@ public class LocalAnalysisFlow {
 
             // Get Reflection Classes
             Class<?> adClass = loadClassSafe("com.chess.entities.AnalysisDepth");
-            Method emitMethod = types.emitMethod;
 
             // Analysis source = the "Ceac" (engine analysis) singleton
             Object sourceEnum = types.ceacSource;
@@ -144,7 +119,7 @@ public class LocalAnalysisFlow {
             // InProgress(float progress, AnalysisDepth depth, m source)
             Constructor<?> ipConstructor = types.inProgressCtor;
             Object initialProgress = ipConstructor.newInstance(0.0f, depthEnum, sourceEnum);
-            emitMethod.invoke(collector, initialProgress, dummyContinuation != null ? dummyContinuation : continuation);
+            emitter.emit(initialProgress);
 
             // Parse PGN using the app's native parser
             Class<?> qClass = Class.forName("com.chess.chessboard.pgn.q");
@@ -221,13 +196,13 @@ public class LocalAnalysisFlow {
             StockfishBridge.newGame();
             StockfishProcess.AnalysisResult[] results = new StockfishProcess.AnalysisResult[totalMoves + 1];
             for (int i = 0; i <= totalMoves; i++) {
-                if (Thread.currentThread().isInterrupted()) throw new InterruptedException("review cancelled");
+                emitter.ensureActive();
                 List<String> hist = historyUsable ? new ArrayList<>(engineMoves.subList(0, i)) : null;
                 results[i] = StockfishBridge.analyzeForReview(startingFen, hist, fens[i], searchDepth, reviewMultiPV, movetimeCap);
 
                 float progress = (float) (i + 1) / (totalMoves + 1);
                 Object progObj = ipConstructor.newInstance(progress, depthEnum, sourceEnum);
-                emitMethod.invoke(collector, progObj, dummyContinuation != null ? dummyContinuation : continuation);
+                emitter.emit(progObj);
             }
 
             // Map Stockfish analysis outputs to AnalyzedGameData's AnalyzedPositions
@@ -527,19 +502,19 @@ public class LocalAnalysisFlow {
             // Emit RemoteAnalysisCompleted to trigger Review UI
             Constructor<?> compConstructor = types.completedCtor;
             Object completedResult = compConstructor.newInstance(gameData, fullPermissions, depthEnum);
-            emitMethod.invoke(collector, completedResult, dummyContinuation != null ? dummyContinuation : continuation);
+            emitter.emit(completedResult);
 
+        } catch (java.util.concurrent.CancellationException c) {
+            // The review screen was closed: complete the coroutine as cancelled.
+            Log.i(TAG, "Local review cancelled");
+            throw c;
         } catch (Throwable t) {
-            logToFile(activity, "EXCEPTION: " + Log.getStackTraceString(t), true);
-            Log.e(TAG, "Local stockfish analysis failed", t);
-            try {
-                Method emitMethod = types.emitMethod;
-                Constructor<?> failConstructor = types.failureCtor;
-                Object failureResult = failConstructor.newInstance(t);
-                emitMethod.invoke(collector, failureResult, dummyContinuation != null ? dummyContinuation : continuation);
-            } catch (Throwable emitErr) {
-                // Ignore secondary emit failures
-            }
+            Throwable cause = t instanceof java.lang.reflect.InvocationTargetException && t.getCause() != null ? t.getCause() : t;
+            if (cause instanceof java.util.concurrent.CancellationException) throw cause;
+            logToFile(activity, "EXCEPTION: " + Log.getStackTraceString(cause), true);
+            Log.e(TAG, "Local stockfish analysis failed", cause);
+            // Report through the app's own Failure state so the screen shows its error UI.
+            emitter.emit(types.failureCtor.newInstance(cause));
         }
     }
 
@@ -616,20 +591,6 @@ public class LocalAnalysisFlow {
         }
         return ratingPoints[ratingPoints.length - 1];
     }
-    private static Object getUnitInstance() {
-        try {
-            Class<?> unitClass = Class.forName("kotlin.Unit");
-            for (Field field : unitClass.getDeclaredFields()) {
-                if (java.lang.reflect.Modifier.isStatic(field.getModifiers()) && field.getType() == unitClass) {
-                    return field.get(null);
-                }
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "Failed to resolve kotlin.Unit instance", t);
-        }
-        return null;
-    }
-
     private static Object getPositionBefore(Object csrmm) throws Exception {
         try {
             return csrmm.getClass().getMethod("getPositionBefore").invoke(csrmm);

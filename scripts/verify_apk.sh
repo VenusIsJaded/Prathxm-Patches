@@ -57,7 +57,7 @@ OUT="$WORK/classes"; rm -rf "$OUT" "$WORK/stubs" && mkdir -p "$OUT" "$WORK/stubs
 javac -encoding UTF-8 -nowarn --release 11 -d "$WORK/stubs" -cp "$TOOLS/android.jar" \
   $(find "$ROOT/scripts/harness/stubs" -name "*.java")
 javac -encoding UTF-8 -nowarn --release 11 -d "$OUT" -cp "$WORK/stubs:$TOOLS/android.jar" \
-  $(find "$ROOT/extensions/extension/src/main/java" -name "*.java") "$ROOT/scripts/harness/Harness.java"
+  $(find "$ROOT/extensions/extension/src/main/java" -name "*.java") "$ROOT/scripts/harness/Harness.java" "$ROOT/scripts/harness/FlowHarness.java"
 
 # The app classes (real com.chess.*) come first, then our stubs, then android.jar's API
 # surface (its method bodies throw, so only the stubbed classes may actually be executed).

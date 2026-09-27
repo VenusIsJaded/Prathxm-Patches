@@ -352,22 +352,30 @@ public class StockfishExtension {
                 // Stream intermediate depths to the board so deep searches feel instant.
                 StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
                         partial -> {
+                            // Keep intermediate evaluations for the move classifier even if the
+                            // search is cancelled later (see MoveClassifier.recordResult).
+                            MoveClassifier.recordResult(fen, partial);
                             if (isStale(jobKey)) return;
                             displayLiveResult(context, fen, partial, false);
                         });
 
-                // The user moved on while we were searching: never paint an outdated result.
-                if (isStale(jobKey)) return;
+                MoveClassifier.recordResult(fen, result);
 
-                if (result.moves.isEmpty()) {
-                    Log.d(TAG, "Engine returned no best moves.");
+                // The user moved on while we were searching: never paint an outdated result,
+                // but still rate the move that led here with the deepest result reached, so
+                // the toast is not lost when the opponent replies quickly.
+                if (isStale(jobKey)) {
+                    if (MoveClassifier.isUsableForRating(result)) {
+                        MoveClassifier.classifyMoveIfPossible(context, fen, result);
+                    }
                     return;
                 }
 
-                String key = MoveClassifier.getFenKey(fen);
-                if (key != null) {
-                    MoveClassifier.getFenToEvalMap().put(key, result.score);
-                    MoveClassifier.getFenToBestMovesMap().put(key, result.moves);
+                if (result.moves.isEmpty()) {
+                    // Checkmate / stalemate: still rate the move that produced it.
+                    if (result.terminal) MoveClassifier.classifyMoveIfPossible(context, fen, result);
+                    Log.d(TAG, "Engine returned no best moves.");
+                    return;
                 }
 
                 MoveClassifier.classifyMoveIfPossible(context, fen, result);
@@ -581,27 +589,49 @@ public class StockfishExtension {
                 if (sideToPlaySelfEffects == null) return null;
                 
                 Method invokeMethod = sideToPlaySelfEffects.getClass().getMethod("invoke");
+                invokeMethod.setAccessible(true);
                 Object side = invokeMethod.invoke(sideToPlaySelfEffects);
                 if (side == null) return null;
-                
-                Method getColorMethod = null;
-                try {
-                    getColorMethod = side.getClass().getMethod("getColor");
-                } catch (NoSuchMethodException e) {
-                    getColorMethod = side.getClass().getMethod("d");
-                }
-                Object color = getColorMethod.invoke(side);
-                if (color == null) return null;
-                
-                String colorName = color.toString();
-                if ("WHITE".equalsIgnoreCase(colorName)) {
-                    return true;
-                } else if ("BLACK".equalsIgnoreCase(colorName)) {
-                    return false;
-                }
+                return sideToWhite(side);
             }
         } catch (Throwable t) {
             Log.e(TAG, "isUserWhite failed: " + t.getMessage(), t);
+        }
+        return null;
+    }
+
+    /**
+     * Colour the user plays from the board's {@code Side} value (WHITE, BLACK, BOTH, NONE).
+     *
+     * <p>The accessor for the side's colour is obfuscated differently in every Chess.com release
+     * (4.10.0: {@code d()}, 4.10.17: {@code c()}); the old lookup by those names threw on
+     * 4.10.17, so "Arrows only on my turn" silently showed arrows for both sides. The enum
+     * constant names are not obfuscated, so they are checked first; the Color-returning
+     * accessor is found by return type as a fallback.
+     *
+     * @return TRUE for white, FALSE for black, null if the user plays both sides or neither
+     */
+    static Boolean sideToWhite(Object side) {
+        if (side == null) return null;
+        String name = side instanceof Enum ? ((Enum<?>) side).name() : String.valueOf(side);
+        if ("WHITE".equalsIgnoreCase(name)) return Boolean.TRUE;
+        if ("BLACK".equalsIgnoreCase(name)) return Boolean.FALSE;
+        if ("BOTH".equalsIgnoreCase(name) || "NONE".equalsIgnoreCase(name)) return null;
+        try {
+            Class<?> colorClass = Class.forName("com.chess.entities.Color");
+            for (Method m : side.getClass().getMethods()) {
+                if (m.getParameterTypes().length == 0 && m.getReturnType() == colorClass) {
+                    m.setAccessible(true);
+                    Object color = m.invoke(side);
+                    if (color == null) return null;
+                    String c = color instanceof Enum ? ((Enum<?>) color).name() : color.toString();
+                    if ("WHITE".equalsIgnoreCase(c)) return Boolean.TRUE;
+                    if ("BLACK".equalsIgnoreCase(c)) return Boolean.FALSE;
+                    return null;
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "sideToWhite failed: " + t.getMessage());
         }
         return null;
     }

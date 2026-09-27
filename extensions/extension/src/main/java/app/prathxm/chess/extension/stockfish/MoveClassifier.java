@@ -24,13 +24,51 @@ public class MoveClassifier {
     private static final List<String> fenHistory = new ArrayList<>();
     private static final Map<String, Float> fenToEvalMap = new ConcurrentHashMap<>();
     private static final Map<String, List<String>> fenToBestMovesMap = new ConcurrentHashMap<>();
+    /** Search depth behind each stored evaluation, so a shallower result never overwrites a deeper one. */
+    private static final Map<String, Integer> fenToDepthMap = new ConcurrentHashMap<>();
+    /** Moves ("prevKey|currentKey") that already produced a toast, so a move is rated only once. */
+    private static final java.util.Set<String> classifiedMoves = ConcurrentHashMap.newKeySet();
+
+    /** Minimum depth for an interrupted / intermediate search to be trusted for a rating. */
+    private static final int MIN_RATING_DEPTH = 8;
 
     public static void clearHistory() {
         synchronized (fenHistory) {
             fenHistory.clear();
-            fenToEvalMap.clear();
-            fenToBestMovesMap.clear();
+            clearMaps();
         }
+    }
+
+    private static void clearMaps() {
+        fenToEvalMap.clear();
+        fenToBestMovesMap.clear();
+        fenToDepthMap.clear();
+        classifiedMoves.clear();
+    }
+
+    /**
+     * Stores the evaluation of a position (final, intermediate or interrupted search). Keeps the
+     * deepest one. Recording intermediate results is what makes the move toasts reliable: the
+     * opponent (e.g. a bot) often replies before the search after our move has reached full
+     * depth, and that search is then cancelled. Previously its result was discarded, so neither
+     * our move nor the reply could be rated and no toast appeared.
+     */
+    public static void recordResult(String fen, StockfishProcess.AnalysisResult r) {
+        if (r == null || r.moves.isEmpty()) return;
+        String key = getFenKey(fen);
+        if (key == null) return;
+        Integer stored = fenToDepthMap.get(key);
+        if (stored != null && stored > r.depth) return;
+        fenToEvalMap.put(key, r.score);
+        fenToBestMovesMap.put(key, new ArrayList<>(r.moves));
+        fenToDepthMap.put(key, r.depth);
+    }
+
+    /** True if an interrupted/intermediate result is deep enough to rate a move with. */
+    public static boolean isUsableForRating(StockfishProcess.AnalysisResult r) {
+        if (r == null) return false;
+        if (r.terminal) return true;
+        return !r.moves.isEmpty() && r.depth >= MIN_RATING_DEPTH;
     }
 
     public static List<String> getFenHistory() {
@@ -51,17 +89,20 @@ public class MoveClassifier {
         synchronized (fenHistory) {
             int idx = fenHistory.indexOf(key);
             if (idx >= 0) {
+                boolean truncated = false;
                 while (fenHistory.size() > idx + 1) {
                     fenHistory.remove(fenHistory.size() - 1);
+                    truncated = true;
                 }
+                // Stepped back (take-back / navigation): allow the next move to be rated again.
+                if (truncated) classifiedMoves.clear();
             } else {
                 if (!fenHistory.isEmpty()) {
                     String lastKey = fenHistory.get(fenHistory.size() - 1);
                     String deduced = deduceUciMove(lastKey, key);
                     if (deduced == null) {
                         fenHistory.clear();
-                        fenToEvalMap.clear();
-                        fenToBestMovesMap.clear();
+                        clearMaps();
                         StockfishExtension.isReviewMode = false;
                     }
                 }
@@ -199,6 +240,8 @@ public class MoveClassifier {
             }
 
             if (prevKey == null) return;
+            final String transition = prevKey + "|" + currentKey;
+            if (classifiedMoves.contains(transition)) return;
 
             Float prevEvalVal = fenToEvalMap.get(prevKey);
             List<String> prevBestMoves = fenToBestMovesMap.get(prevKey);
@@ -208,7 +251,6 @@ public class MoveClassifier {
             float currentEval = currentResult.score;
 
             boolean whiteMoved = prevKey.endsWith(" w");
-            float delta = whiteMoved ? (currentEval - prevEval) : (prevEval - currentEval);
 
             String uciMove = deduceUciMove(prevKey, currentKey);
             
@@ -239,6 +281,7 @@ public class MoveClassifier {
             final boolean triggerVibrate = isBlunderOrMistake;
 
             if (activity != null) {
+                classifiedMoves.add(transition);
                 activity.runOnUiThread(() -> {
                     Toast.makeText(activity, toastText, Toast.LENGTH_SHORT).show();
                     
