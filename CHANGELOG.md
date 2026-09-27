@@ -1,3 +1,23 @@
+## [1.15.0](https://github.com/VenusIsJaded/Prathxm-Patches/releases/tag/v1.15.0) (2026-09-27)
+
+### 🔧 Improvements
+
+* **Chess.com:** live analysis updates as the search deepens (arrows/eval appear within a fraction of a second, then refine)
+* **Chess.com:** larger RAM-scaled hash table for deeper, more consistent searches
+* **Chess.com:** clearer Engine Settings with grouped sections and explanations
+
+### 🐛 Bug Fixes
+
+* **Chess.com:** outdated analysis is no longer painted after moving on
+* **Chess.com:** no arrow flicker while the engine thinks
+* **Chess.com:** result cache respects the Elo value and chosen number of arrows
+* **Chess.com:** removed the non-functional "Remove Ads" toggle; engine name now shows Stockfish 19
+* **Chess.com:** settings apply instantly to the current position
+
+## [1.14.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/1) (2026-09-26)
+
+* **Chess.com:** Stockfish 19 (universal arm64), full-power engine settings, accurate win-probability game review
+
 ## [1.13.1](https://github.com/PrathxmOp/Prathxm-Patches/compare/v1.13.0...v1.13.1) (2026-09-19)
 
 ### 🐛 Bug Fixes

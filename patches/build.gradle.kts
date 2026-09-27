@@ -6,11 +6,11 @@ group = "app.prathxm.chess"
 patches {
     about {
         name = "Prathxm Patches"
-        description = "Custom Morphe patches for Chess.com — Ad-free experience and local offline engine tools"
-        source = "git@github.com:PrathxmOp/Prathxm-Patches.git"
+        description = "Chess.com patches: offline Stockfish 19 analysis & game review, ad-free, all bots unlocked, offline Lichess puzzles"
+        source = "git@github.com:VenusIsJaded/Prathxm-Patches.git"
         author = "Prathxm"
         contact = "github.com/PrathxmOp"
-        website = "github.com/PrathxmOp/Prathxm-Patches"
+        website = "github.com/VenusIsJaded/Prathxm-Patches"
         license = "GPLv3"
     }
 }
