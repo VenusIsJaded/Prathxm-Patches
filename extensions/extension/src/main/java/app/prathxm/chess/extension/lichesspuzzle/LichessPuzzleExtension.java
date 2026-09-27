@@ -61,15 +61,15 @@ public final class LichessPuzzleExtension {
         }
     }
 
-    public static Object submitDailyPuzzleAction(int dailyPuzzleId, Object action, Object hintState, Object continuation) {
+    public static Object submitDailyPuzzleAction(long dailyPuzzleId, Object action, Object hintState) {
         Log.d(TAG, "submitDailyPuzzleAction() called with id: " + dailyPuzzleId);
         try {
             Puzzle puzzle = lastPuzzle != null ? lastPuzzle : fallbackPuzzle(today());
             Object res = newInstance(
-                "chesscom.puzzles.v2alpha.SubmitDailyPuzzleActionResponse",
+                "chesscom.puzzles.v2.SubmitDailyPuzzleActionResponse",
                 new Class<?>[]{
-                    cls("chesscom.puzzles.v2alpha.DailyPuzzleAttemptState"),
-                    cls("chesscom.puzzles.v2alpha.DailyPuzzleUserStats"),
+                    cls("chesscom.puzzles.v2.DailyPuzzleAttemptState"),
+                    cls("chesscom.puzzles.v2.DailyPuzzleUserStats"),
                     cls("okio.ByteString")
                 },
                 attempt(puzzle),
@@ -148,11 +148,11 @@ public final class LichessPuzzleExtension {
 
     private static Object response(Puzzle puzzle) throws Exception {
         return newInstance(
-            "chesscom.puzzles.v2alpha.GetDailyPuzzleResponse",
+            "chesscom.puzzles.v2.GetDailyPuzzleResponse",
             new Class<?>[]{
-                cls("chesscom.puzzles.v2alpha.DailyPuzzle"),
-                cls("chesscom.puzzles.v2alpha.DailyPuzzleAttemptState"),
-                cls("chesscom.puzzles.v2alpha.DailyPuzzleUserStats"),
+                cls("chesscom.puzzles.v2.DailyPuzzle"),
+                cls("chesscom.puzzles.v2.DailyPuzzleAttemptState"),
+                cls("chesscom.puzzles.v2.DailyPuzzleUserStats"),
                 Integer.class,
                 cls("okio.ByteString")
             },
@@ -166,21 +166,21 @@ public final class LichessPuzzleExtension {
 
     private static Object dailyPuzzle(Puzzle puzzle) throws Exception {
         return newInstance(
-            "chesscom.puzzles.v2alpha.DailyPuzzle",
+            "chesscom.puzzles.v2.DailyPuzzle",
             new Class<?>[]{
-                int.class,
+                long.class,
                 String.class,
                 String.class,
                 String.class,
                 int.class,
                 int.class,
-                cls("chesscom.puzzles.v2alpha.DailyPuzzleAuthorDetails"),
-                cls("chesscom.puzzles.v2alpha.DailyPuzzleVideoDetails"),
+                cls("chesscom.puzzles.v2.DailyPuzzleAuthorDetails"),
+                cls("chesscom.puzzles.v2.DailyPuzzleVideoDetails"),
                 boolean.class,
                 int.class,
                 cls("okio.ByteString")
             },
-            puzzle.id,
+            (long) puzzle.id,
             puzzle.title,
             puzzle.date,
             puzzle.pgn,
@@ -196,31 +196,33 @@ public final class LichessPuzzleExtension {
 
     private static Object attempt(Puzzle puzzle) throws Exception {
         return newInstance(
-            "chesscom.puzzles.v2alpha.DailyPuzzleAttemptState",
+            "chesscom.puzzles.v2.DailyPuzzleAttemptState",
             new Class<?>[]{
-                int.class,
+                long.class,
                 String.class,
                 int.class,
                 cls("java.time.Instant"),
                 int.class,
                 String.class,
-                cls("chesscom.puzzles.v2alpha.DailyPuzzleHintState"),
+                cls("chesscom.puzzles.v2.DailyPuzzleHintState"),
+                Boolean.class,
                 cls("okio.ByteString")
             },
-            puzzle.id,
+            (long) puzzle.id,
             puzzle.date,
             HEARTS,
             null,
             0,
             "Lichess puzzle loaded locally.",
             null,
+            Boolean.FALSE,
             emptyByteString()
         );
     }
 
     private static Object stats() throws Exception {
         return newInstance(
-            "chesscom.puzzles.v2alpha.DailyPuzzleUserStats",
+            "chesscom.puzzles.v2.DailyPuzzleUserStats",
             new Class<?>[]{int.class, int.class, int.class, cls("okio.ByteString")},
             0,
             100,

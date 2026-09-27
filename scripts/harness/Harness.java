@@ -1,0 +1,234 @@
+package app.prathxm.chess.extension.stockfish;
+
+import java.lang.reflect.Array;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Desktop verification harness.
+ *
+ * Runs the extension's reflection code against the REAL Chess.com classes (the target APK's
+ * dex converted to JVM bytecode with dex2jar) on a plain JVM, with a tiny android.jar stub
+ * layer. This proves every obfuscated class/constructor/method the Game Review, arrows and
+ * painters rely on resolves and can be instantiated for that exact app version.
+ *
+ * Usage: see scripts/verify_apk.sh
+ */
+public class Harness {
+    private static int fails = 0;
+
+    private static void check(String name, boolean ok, Object detail) {
+        String d = detail == null ? "" : String.valueOf(detail);
+        if (d.length() > 220) d = d.substring(0, 220) + "…";
+        System.out.println((ok ? "PASS " : "FAIL ") + name + (d.isEmpty() ? "" : "  -> " + d));
+        if (!ok) fails++;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static void main(String[] args) throws Throwable {
+        Class<?> flow = Class.forName(args[0]);
+
+        // ── 1. Review type resolution ───────────────────────────────────────────────────
+        AppTypes t = AppTypes.get(flow);
+        check("Flow collector type", t.collectorClass != null, t.collectorClass.getName());
+        check("Continuation type", t.continuationClass != null, t.continuationClass.getName());
+        check("FlowCollector.emit", t.emitMethod != null, t.emitMethod);
+        check("AnalyzedGameData package", t.agdPrefix != null, t.agdPrefix);
+        check("InProgress(float, depth, source)", t.inProgressCtor != null, t.inProgressCtor);
+        check("Completed(agd, perms, depth)", t.completedCtor != null, t.completedCtor);
+        check("Failure(Throwable)", t.failureCtor != null, t.failureCtor);
+        check("Analysis source is \"Ceac\"", "Ceac".equals(String.valueOf(t.ceacSource)), t.ceacSource);
+
+        Class<?> depthCls = Class.forName("com.chess.entities.AnalysisDepth");
+        Object standard = Enum.valueOf((Class<Enum>) depthCls, "STANDARD");
+        check("InProgress instance", t.inProgressCtor.newInstance(0.5f, standard, t.ceacSource) != null, null);
+        check("Failure instance", t.failureCtor.newInstance(new RuntimeException("x")) != null, null);
+
+        // ── 2. Real PGN parsing path ────────────────────────────────────────────────────
+        Class<?> qClass = Class.forName("com.chess.chessboard.pgn.q");
+        Class<?> fenTypeClass = Class.forName("com.chess.chessboard.fen.FenParser$FenType");
+        Object fenTypeC = fenTypeClass.getField("c").get(null);
+        check("FenType.c is OPTIONAL_MOVE_NUMBER", "OPTIONAL_MOVE_NUMBER".equals(String.valueOf(fenTypeC)), fenTypeC);
+        Method parse = qClass.getMethod("a", String.class, boolean.class, boolean.class, fenTypeClass);
+        String pgn = "[Event \"t\"]\n[White \"a\"]\n[Black \"b\"]\n[WhiteElo \"1500\"]\n[BlackElo \"1500\"]\n[Result \"*\"]\n\n"
+                + "1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. O-O Nf6 *";
+        Object game = parse.invoke(null, pgn, true, true, fenTypeC);
+        List<?> moves = (List<?>) game.getClass().getMethod("b").invoke(game);
+        check("PGN parsed into 8 plies", moves.size() == 8, moves.size());
+        Object start = game.getClass().getMethod("c").invoke(game);
+        String fen0 = StockfishExtension.extractFen(start);
+        check("extractFen(start position)", fen0 != null && fen0.startsWith("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -"), fen0);
+        Method conv = Class.forName("com.chess.chessboard.compengine.MoveConverterKt")
+                .getMethod("b", Class.forName("com.chess.chessboard.l"));
+        Object mv0 = moves.get(0);
+        String lan0 = (String) conv.invoke(null, mv0.getClass().getMethod("a").invoke(mv0));
+        check("Move 1 LAN is e2e4", "e2e4".equals(lan0), lan0);
+        Object mv6 = moves.get(6);
+        String lan6 = (String) conv.invoke(null, mv6.getClass().getMethod("a").invoke(mv6));
+        check("Castling LAN (app notation)", lan6 != null && lan6.startsWith("e1"), lan6);
+        String fen1 = StockfishExtension.extractFen(mv0.getClass().getMethod("b").invoke(mv0));
+        check("extractFen(after 1.e4)", fen1 != null && fen1.startsWith("rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq"), fen1);
+
+        // ── 3. Full AnalyzedGameData build (mirrors LocalAnalysisFlow) ─────────────────────
+        Class<?> colorClass = Class.forName("com.chess.entities.Color");
+        Class<?> apClass = t.agd("$AnalyzedPosition");
+        Class<?> pmClass = t.agd("$AnalyzedPosition$PlayedMove");
+        Class<?> smClass = t.agd("$AnalyzedPosition$SuggestedMove");
+        Class<?> bmClass = t.agd("$AnalyzedPosition$BestMove");
+        Class<?> scClass = t.agd("$AnalyzedPosition$Scenarios");
+        Class<?> evalClass = t.agd("$AnalyzedPosition$Eval");
+        Constructor<?> apC = apClass.getConstructor(colorClass, pmClass, smClass, bmClass, String.class, scClass);
+        Constructor<?> pmC = AppTypes.primaryCtor(pmClass);
+        Constructor<?> smC = smClass.getConstructor(float.class, Integer.class, String.class, evalClass, List.class, String.class);
+        Constructor<?> bmC = bmClass.getConstructor(String.class);
+        Constructor<?> scC = scClass.getConstructor(boolean.class, boolean.class);
+        Constructor<?> evC = evalClass.getConstructor(List.class, int.class);
+        Class<?>[] pp = pmC.getParameterTypes();
+        check("PlayedMove leading 7 params", pp.length >= 7 && pp[0] == String.class && pp[1] == float.class
+                && pp[2] == Integer.class && pp[3] == String.class && pp[4] == evalClass && pp[5] == List.class
+                && pp[6] == String.class, Arrays.toString(pp));
+
+        Object white = Enum.valueOf((Class<Enum>) colorClass, "WHITE");
+        Object ev = evC.newInstance(new ArrayList<>(Arrays.asList("e2e4", "e7e5")), 1);
+        Object[] pmArgs = new Object[pp.length];
+        for (int k = 0; k < pp.length; k++) pmArgs[k] = AppTypes.defaultFor(pp[k]);
+        pmArgs[0] = "18"; pmArgs[1] = 0.3f; pmArgs[2] = null; pmArgs[3] = "e2e4"; pmArgs[4] = ev;
+        pmArgs[5] = new ArrayList<>(); pmArgs[6] = null;
+        Object pm = pmC.newInstance(pmArgs);
+        check("PlayedMove instance", String.valueOf(pm).contains("moveLan=e2e4"), pm);
+        Object sm = smC.newInstance(0.3f, null, "e2e4", ev, new ArrayList<>(), null);
+        Object ap = apC.newInstance(white, pm, sm, bmC.newInstance("e2e4"), "best", scC.newInstance(false, false));
+        check("AnalyzedPosition instance", String.valueOf(ap).startsWith("AnalyzedPosition("), null);
+
+        Class<?> mtClass = t.agd("$Tallies$MovesTally");
+        Object tally = mtClass.getConstructor(int.class, int.class, int.class, int.class, int.class, int.class,
+                int.class, int.class, int.class, int.class, int.class).newInstance(0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0);
+        Class<?> talliesClass = t.agd("$Tallies");
+        Object tallies = talliesClass.getConstructor(mtClass, mtClass, String.class, String.class).newInstance(tally, tally, "a", "b");
+        Class<?> accClass = t.agd("$AccuracyScores$Accuracy");
+        Object acc = accClass.getConstructor(float.class, Float.class, Float.class, Float.class).newInstance(90f, null, null, null);
+        Class<?> accScoresClass = t.agd("$AccuracyScores");
+        Object accScores = accScoresClass.getConstructor(accClass, accClass).newInstance(acc, acc);
+        Class<?> rcClass = t.agd("$ReportCard");
+        Class<?> repClass = t.agd("$ReportCard$Report");
+        Class<?> glyphsClass = t.agd("$ReportCard$Report$Glyphs");
+        Class<?> catClass = t.agd("$ReportCard$CategoryRating");
+        Object glyphs = glyphsClass.getConstructor(String.class, String.class, String.class).newInstance(null, null, null);
+        Object cat = catClass.getConstructor(String.class, int.class, String.class, int.class).newInstance("Opening", 1500, "Good", 0);
+        Object rep = repClass.getConstructor(Integer.class, glyphsClass, List.class)
+                .newInstance(1500, glyphs, new ArrayList<>(Collections.singletonList(cat)));
+        Object rc = rcClass.getConstructor(repClass, repClass, String.class).newInstance(rep, rep, "x");
+        Class<?> twClass = t.agd("$Themes$ThemesWeights");
+        Object tw = twClass.getConstructor(Map.class, Map.class).newInstance(new HashMap<>(), new HashMap<>());
+        Class<?> themesClass = t.agd("$Themes");
+        Object themes = themesClass.getConstructor(twClass).newInstance(tw);
+
+        Constructor<?> agdC = AppTypes.primaryCtor(t.agd(""));
+        Class<?>[] at = agdC.getParameterTypes();
+        Object[] aa = new Object[at.length];
+        int stringSlot = 0;
+        String[] strings = {"rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", "", "depth_18", "done", null, null};
+        List<Object> positions = new ArrayList<>(Collections.singletonList(ap));
+        for (int k = 0; k < at.length; k++) {
+            Class<?> c = at[k];
+            if (c == String.class) aa[k] = stringSlot < strings.length ? strings[stringSlot++] : null;
+            else if (c == talliesClass) aa[k] = tallies;
+            else if (c == accScoresClass) aa[k] = accScores;
+            else if (c == List.class) aa[k] = positions;
+            else if (c == Integer.class) aa[k] = 0;
+            else if (c == themesClass) aa[k] = themes;
+            else if (c == rcClass) aa[k] = rc;
+            else aa[k] = AppTypes.defaultFor(c);
+        }
+        check("AnalyzedGameData has exactly 6 String params", stringSlot == 6, Arrays.toString(at));
+        Object agd = agdC.newInstance(aa);
+        String s = String.valueOf(agd);
+        check("AGD.startingFen", s.contains("startingFen=rnbqkbnr/pppppppp"), null);
+        check("AGD.positions", s.contains("positions=[AnalyzedPosition("), null);
+        check("AGD.arc", s.contains(", arc=,"), null);
+        check("AGD.themes", s.contains("themes=Themes("), null);
+        check("AGD.reportCard", s.contains("reportCard=ReportCard("), null);
+        check("AGD.analysisStrength", s.contains("analysisStrength=depth_18"), null);
+        check("AGD.gameSummary", s.contains("gameSummary=done"), null);
+
+        Class<?> permClass = Class.forName("com.chess.entities.GameAnalysisPermissions");
+        Object perms = StockfishExtension.getFullGameAnalysisPermissions();
+        check("Full GameAnalysisPermissions", perms != null && permClass.isInstance(perms), perms);
+        Object completed = t.completedCtor.newInstance(agd, perms, standard);
+        check("Completed result instance", completed != null, completed.getClass().getName());
+
+        // ── 4. Review item fallback builder ─────────────────────────────────────────────
+        // history.i = PositionAndMove(position, move, capture): what the app passes to the hook.
+        Class<?> hist = Class.forName("com.chess.chessboard.history.i");
+        Constructor<?> pamC = hist.getConstructor(Class.forName("com.chess.chessboard.variants.d"),
+                Class.forName("com.chess.chessboard.l"), boolean.class);
+        Object pam = pamC.newInstance(start, mv0.getClass().getMethod("a").invoke(mv0), false);
+        check("PositionAndMove instance", String.valueOf(pam).startsWith("PositionAndMove("), pam);
+        Class<?> pair = Class.forName("com.chess.gamereview.api.d");
+        Object dummy = StockfishExtension.buildDummyMoveResult(pair, pam);
+        check("buildDummyMoveResult", dummy != null && pair.isInstance(dummy), dummy);
+        check("fallback item is a BOOK move", String.valueOf(dummy).contains("classification=BOOK"), dummy);
+
+        // ── 5. Board arrows ─────────────────────────────────────────────────────────────
+        Class<?> state = Class.forName("com.chess.chessboard.vm.movesinput.CBViewModelStateImpl");
+        Method res = ArrowInjector.class.getDeclaredMethod("resolveMembers", Class.class);
+        res.setAccessible(true);
+        res.invoke(null, state);
+        Method setter = (Method) field(ArrowInjector.class, "cachedSetter");
+        Method getter = (Method) field(ArrowInjector.class, "cachedGetter");
+        Class<?> arrow = (Class<?>) field(ArrowInjector.class, "cachedHintArrowClass");
+        check("moveArrows setter", setter != null, setter);
+        check("moveArrows getter", getter != null, getter);
+        check("HintArrow class", arrow != null, arrow);
+        if (args.length > 1) check("setter is the patched method (" + args[1] + ")", setter != null && setter.getName().equals(args[1]), null);
+        Class<?> u = Class.forName("com.chess.chessboard.u");
+        Object uI = u.getField("a").get(null);
+        Method sq = u.getMethod("c", String.class);
+        Method newArrow = ArrowInjector.class.getDeclaredMethod("newArrow", Class.class, Object.class, Object.class, int.class, float.class);
+        newArrow.setAccessible(true);
+        Object ar = newArrow.invoke(null, arrow, sq.invoke(uI, "e2"), sq.invoke(uI, "e4"), 0xFF00C853, 0.85f);
+        String as = String.valueOf(ar);
+        check("HintArrow instance", as.startsWith("HintArrow("), as);
+        check("HintArrow fields", as.contains("color=" + 0xFF00C853) && as.contains("opacity=0.85")
+                && as.contains("persistent=false") && as.contains("animated=true"), as);
+        check("isEngineArrow recognises our arrow", ArrowInjector.isEngineArrow(ar), null);
+
+        // ── 6. KEY_MOVE_HINTS painter injection ────────────────────────────────────────
+        Class<?> opt = Class.forName("com.chess.internal.utils.chessboard.ChessBoardViewOptionalPainterType");
+        Object[] out = StockfishExtension.ensureHintArrowsEnabled((Object[]) Array.newInstance(opt, 0));
+        check("KEY_MOVE_HINTS injected", out.length == 1 && "KEY_MOVE_HINTS".equals(String.valueOf(out[0])), Arrays.toString(out));
+
+        // ── 7. Ad-Free premium object ──────────────────────────────────────────────────
+        Object diamond = StockfishExtension.getPremiumStatusObject(null);
+        check("PremiumStatus.DIAMOND", "DIAMOND".equals(String.valueOf(diamond)), diamond);
+
+        // ── 8. Lichess daily puzzle -> Chess.com proto objects ─────────────────────────────
+        // (network is not reachable in the harness, so the built-in fallback puzzle is used,
+        //  which runs exactly the same proto construction code)
+        Object resp = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.getDailyPuzzle("2026-09-27", null);
+        check("GetDailyPuzzleResponse built", resp != null && resp.getClass().getName().endsWith("GetDailyPuzzleResponse"), resp);
+        check("daily puzzle has PGN + hearts", String.valueOf(resp).contains("pgn=") && String.valueOf(resp).contains("999999"), resp);
+        Object sub = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.submitDailyPuzzleAction(123L, null, null);
+        check("SubmitDailyPuzzleActionResponse built", sub != null && sub.getClass().getName().endsWith("SubmitDailyPuzzleActionResponse"), sub);
+
+        // ── 9. Custom titles ──────────────────────────────────────────────────────────
+        Class<?> palette = Class.forName("com.chess.palette.compose.component.ChessTitle");
+        check("palette ChessTitle enum", palette.isEnum() && palette.getEnumConstants().length > 0, palette.getEnumConstants().length);
+
+        System.out.println(fails == 0 ? "ALL CHECKS PASSED" : (fails + " CHECK(S) FAILED"));
+        System.exit(fails == 0 ? 0 : 1);
+    }
+
+    private static Object field(Class<?> c, String name) throws Exception {
+        Field f = c.getDeclaredField(name);
+        f.setAccessible(true);
+        return f.get(null);
+    }
+}

@@ -77,7 +77,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 ## 🩹 Patches
 
 <!-- PATCHES_START -->
-**Supported Chess.com versions:** `4.9.49` · `4.9.49-googleplay` · `4.10.0` · `4.10.0-googleplay`
+**Supported Chess.com versions:** `4.9.49` · `4.9.49-googleplay` · `4.10.0` · `4.10.0-googleplay` · `4.10.17` · `4.10.17-googleplay`
 
 | Patch | What it does | Default |
 | :-- | :-- | :-: |
@@ -99,8 +99,12 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 ./.github/scripts/download_stockfish.sh
 ./gradlew patches:buildAndroid
 
-# Build the .mpp without registry access (rebuilds the extension and bundles Stockfish 19)
-scripts/build_mpp_local.sh 1.15.0   # output: out/patches-1.15.0.mpp
+# Build the .mpp without registry access (compiles patches + extension, bundles Stockfish 19)
+scripts/setup_tools.sh               # one-time: JDK 17, kotlinc, morphe-cli, smali, dex2jar
+scripts/build_mpp_local.sh 1.16.0   # output: out/patches-1.16.0.mpp
+
+# Verify the extension's reflection against a real Chess.com APKM (desktop JVM)
+scripts/verify_apk.sh com.chess_4.10.17.apkm com.google.android.xh4
 ```
 
 ---
