@@ -140,3 +140,4 @@ scratch/
 
 morphe-data/
 lichess_offline_puzzles_all.csv.gz
+.work/
