@@ -226,6 +226,7 @@ public class StockfishExtension {
         }
 
         ArrowInjector.clearEngineArrows(stateImplObject);
+        lastArrowSignature = null;
 
         String fen = extractFen(positionObject);
         if (fen == null) {
@@ -313,15 +314,23 @@ public class StockfishExtension {
         }
     }
 
+    /** Signature (position + moves) of the engine arrows currently on the board. */
+    private static volatile String lastArrowSignature = null;
+
     /** Position (FEN key) of the most recently scheduled live analysis. */
     private static volatile String lastScheduledKey = null;
 
     private static void scheduleAnalysis(String fen) {
+        scheduleAnalysis(fen, false);
+    }
+
+    /** @param force restart even if this position is already being analysed (settings changed). */
+    private static void scheduleAnalysis(String fen, boolean force) {
         // The board callback fires several times for the same position (move animation,
         // arrow updates, re-renders). Restarting an identical search each time just burns CPU.
         String posKey = StockfishBridge.positionKey(fen);
         Future<?> running = currentJob;
-        if (posKey != null && posKey.equals(lastScheduledKey) && running != null && !running.isDone()) {
+        if (!force && posKey != null && posKey.equals(lastScheduledKey) && running != null && !running.isDone()) {
             return;
         }
         lastScheduledKey = posKey;
@@ -411,8 +420,16 @@ public class StockfishExtension {
         }
 
         if (showArrows) {
-            ArrowInjector.injectEngineArrows(context, getStateImpl(), result.moves, result.ponder);
+            // Re-injecting identical arrows restarts their animation (visible flicker while
+            // the search deepens), so only push arrows when they actually changed.
+            String sig = fen + '|' + result.moves
+                    + (StockfishSettings.isThreatArrowsEnabled(context) ? "|" + result.ponder : "");
+            if (!sig.equals(lastArrowSignature)) {
+                lastArrowSignature = sig;
+                ArrowInjector.injectEngineArrows(context, getStateImpl(), result.moves, result.ponder);
+            }
         } else if (isFinal) {
+            lastArrowSignature = null;
             ArrowInjector.clearEngineArrows(getStateImpl());
         }
 
@@ -495,6 +512,7 @@ public class StockfishExtension {
             StockfishBridge.stopSearch();
             
             ArrowInjector.clearEngineArrows(getStateImpl());
+            lastArrowSignature = null;
             OverlayManager.hideEvalBar();
             OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
@@ -504,6 +522,9 @@ public class StockfishExtension {
     }
 
     public static void triggerAnalysisForCurrentState() {
+        // Settings may have changed (depth, lines, overlays): always repaint and restart the
+        // search even if the same position is already being analysed.
+        lastArrowSignature = null;
         Object state = getStateImpl();
         if (state != null) {
             try {
@@ -512,7 +533,7 @@ public class StockfishExtension {
                 if (positionObject != null) {
                     String fen = extractFen(positionObject);
                     if (fen != null) {
-                        scheduleAnalysis(fen);
+                        scheduleAnalysis(fen, true);
                     }
                 }
             } catch (Throwable t) {
