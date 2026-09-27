@@ -33,10 +33,10 @@ object PositionSetterFingerprint : Fingerprint(
 // ─────────────────────────────────────────────────────────────────────────────
 // Fingerprint 2 – CBViewModelStateImpl setMoveArrows(List<HintArrow>)
 //
-// The obfuscated name changes between releases (4.9.x/4.10.0: a2, 4.10.17: G2), so match
-// by body instead: the (List)V setter that writes delegated property slot 0xb. moveArrows is
-// the 12th (index 0xb) delegated property of CBViewModelStateImpl in every supported version;
-// the only other slot-0xb accessor is the getter, which has a different signature.
+// Matched by body rather than by obfuscated name (G2 in 4.10.17): the (List)V setter that
+// writes delegated property slot 0xb. moveArrows is the 12th (index 0xb) delegated property
+// of CBViewModelStateImpl; the only other slot-0xb accessor is the getter, which has a
+// different signature.
 // ─────────────────────────────────────────────────────────────────────────────
 object SetMoveArrowsFingerprint : Fingerprint(
     definingClass = "Lcom/chess/chessboard/vm/movesinput/CBViewModelStateImpl;",
@@ -118,22 +118,19 @@ object GameAnalysisPermissionsGetCanViewCoachCommentaryFingerprint : Fingerprint
 )
 
 object GameAnalysisRepositoryGetGameAnalysisFingerprint : Fingerprint(
-    // 4.9.x/4.10.0: b(CompatGameIdAndType, String pgn, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine)
-    // 4.10.17+:     a(ComputerAnalysisConfiguration, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine, Z)
+    // a(ComputerAnalysisConfiguration, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine, Z)
     custom = { method, classDef ->
         classDef.type == "Lcom/chess/gamereview/repository/GameAnalysisRepositoryImpl;" &&
             method.parameterTypes.size == 7 &&
-            method.parameterTypes.contains("Lcom/chess/entities/AnalysisDepth;") &&
-            method.parameterTypes.contains("Lcom/chess/entities/AnalysisEngine;") &&
-            (method.parameterTypes[1] == "Ljava/lang/String;" ||
-                method.parameterTypes[0] == "Lcom/chess/entities/ComputerAnalysisConfiguration;")
+            method.parameterTypes[0] == "Lcom/chess/entities/ComputerAnalysisConfiguration;" &&
+            method.parameterTypes[4] == "Lcom/chess/entities/AnalysisDepth;" &&
+            method.parameterTypes[5] == "Lcom/chess/entities/AnalysisEngine;"
     }
 )
 
 object GameReviewV2V0DFingerprint : Fingerprint(
     // Builds the engine-line preview for a review position.
-    // 4.10.0: v2.u0.E(variants.d, repository.AnalyzedGameData$AnalyzedPosition$Eval) -> api.n
-    // 4.10.17: v2.f1.M(variants.d, compengine.entities.AnalyzedGameData$AnalyzedPosition$Eval) -> api.o
+    // v2.f1.M(variants.d, compengine.entities.AnalyzedGameData$AnalyzedPosition$Eval) -> api.o
     custom = { method, classDef ->
         classDef.type.startsWith("Lcom/chess/gamereview/v2/") &&
             method.parameterTypes.size == 2 &&
@@ -145,7 +142,7 @@ object GameReviewV2V0DFingerprint : Fingerprint(
 
 object GameReviewV2V0JFingerprint : Fingerprint(
     // Builds the per-move review item (played move + suggestion).
-    // 4.10.0: v2.u0.K(...)  4.10.17: v2.f1.T(AnalyzedPosition, history.i, GameAnalysisPermissions, Z) -> api.d
+    // v2.f1.T(AnalyzedPosition, history.i, GameAnalysisPermissions, Z) -> api.d
     custom = { method, classDef ->
         classDef.type.startsWith("Lcom/chess/gamereview/v2/") &&
             method.parameterTypes.size == 4 &&

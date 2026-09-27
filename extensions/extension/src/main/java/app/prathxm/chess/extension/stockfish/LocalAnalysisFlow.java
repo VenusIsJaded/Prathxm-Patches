@@ -215,9 +215,8 @@ public class LocalAnalysisFlow {
             Class<?> evalClass = types.agd("$AnalyzedPosition$Eval");
 
             Constructor<?> apConstructor = apClass.getConstructor(colorClass, pmClass, smClass, bmClass, String.class, scClass);
-            // PlayedMove: 4.10.0 (depth, score, mateIn, moveLan, eval, speech, coachEmotion, skillsEarned)
-            //            4.10.17 (depth, score, mateIn, moveLan, eval, speech, coachEmotion, skills, skillsHash, boardMarkings)
-            // Both start with the same 7 parameters; the rest are optional and default to null/empty.
+            // PlayedMove: (depth, score, mateIn, moveLan, eval, speech, coachEmotion, skills, skillsHash, boardMarkings)
+            // Everything after the first 7 parameters is optional and defaults to null/empty.
             Constructor<?> pmConstructor = AppTypes.primaryCtor(pmClass);
             Constructor<?> smConstructor = smClass.getConstructor(
                 float.class, Integer.class, String.class, evalClass, List.class, String.class
@@ -460,12 +459,10 @@ public class LocalAnalysisFlow {
             // Build the final AnalyzedGameData
             Class<?> agdClass = types.agd("");
 
-            // AnalyzedGameData primary constructor. Layout differs by version:
-            //  4.10.0 : (startingFen, tallies, accuracyScores, positions, Integer bookPly, openingInfo, arc,
-            //            arcPlayerScenarios, playMayContinue, themes, cee, metaData, reportCard,
-            //            analysisStrength, gameSummary, gameSummaryAudioUrlHash, gameSummaryCoachEmotion, takeaways)
-            //  4.10.17: bookPly removed, GameResult gameResult appended.
-            // Fill by type in declaration order; unknown/optional parameters get null/0/empty.
+            // AnalyzedGameData primary constructor: (startingFen, tallies, accuracyScores, positions,
+            // openingInfo, arc, arcPlayerScenarios, playMayContinue, themes, cee, metaData, reportCard,
+            // analysisStrength, gameSummary, gameSummaryAudioUrlHash, gameSummaryCoachEmotion,
+            // takeaways, gameResult). Fill by type in declaration order; unknown/optional parameters get null/0/empty.
             Constructor<?> agdConstructor = AppTypes.primaryCtor(agdClass);
             Class<?>[] agdTypes = agdConstructor.getParameterTypes();
             Object[] agdArgs = new Object[agdTypes.length];
@@ -484,7 +481,6 @@ public class LocalAnalysisFlow {
                 else if (t == talliesClass) agdArgs[k] = tallies;
                 else if (t == accScoresClass) agdArgs[k] = accuracyScores;
                 else if (t == List.class) agdArgs[k] = positions;
-                else if (t == Integer.class) agdArgs[k] = 0;          // bookPly (4.10.0 only)
                 else if (t == themesClass) agdArgs[k] = themes;
                 else if (t == rcClass) agdArgs[k] = reportCard;
                 else agdArgs[k] = AppTypes.defaultFor(t);             // openingInfo, cee, gameResult, ...

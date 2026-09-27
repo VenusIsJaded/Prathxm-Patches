@@ -15,23 +15,16 @@ import java.util.List;
 
 /**
  * Resolves obfuscated Chess.com classes that the local Game Review needs, by structure rather
- * than by obfuscated name, so the same extension works across Chess.com releases.
+ * than by obfuscated name, so small renames inside a release do not break it.
  *
- * <p>Supported layouts:
- * <ul>
- *   <li>4.9.x / 4.10.0: review model in {@code com.chess.gamereview.repository.AnalyzedGameData},
- *       result sealed class {@code repository.h}, source sealed class {@code repository.m}</li>
- *   <li>4.10.17: review model in {@code com.chess.compengine.entities.AnalyzedGameData},
- *       result sealed class {@code repository.g}, source sealed class {@code repository.i}</li>
- * </ul>
+ * <p>Chess.com 4.10.17: review model in {@code com.chess.compengine.entities.AnalyzedGameData},
+ * result sealed class {@code gamereview.repository.g}, source sealed class
+ * {@code gamereview.repository.i}.
  */
 final class AppTypes {
     private static final String TAG = "StockfishAppTypes";
 
-    private static final String[] AGD_PACKAGES = {
-        "com.chess.compengine.entities.",   // 4.10.17+
-        "com.chess.gamereview.repository."  // 4.9.x / 4.10.0
-    };
+    private static final String AGD_CLASS = "com.chess.compengine.entities.AnalyzedGameData";
 
     private static volatile AppTypes cached;
 
@@ -64,16 +57,9 @@ final class AppTypes {
         continuationClass = collect.getParameterTypes()[1];
         emitMethod = collectorClass.getMethod("emit", Object.class, continuationClass);
 
-        String prefix = null;
-        for (String pkg : AGD_PACKAGES) {
-            if (load(pkg + "AnalyzedGameData") != null) {
-                prefix = pkg + "AnalyzedGameData";
-                break;
-            }
-        }
-        if (prefix == null) throw new ClassNotFoundException("AnalyzedGameData not found");
-        agdPrefix = prefix;
-        Class<?> agd = load(prefix);
+        Class<?> agd = load(AGD_CLASS);
+        if (agd == null) throw new ClassNotFoundException("AnalyzedGameData not found");
+        agdPrefix = AGD_CLASS;
         Class<?> depth = Class.forName("com.chess.entities.AnalysisDepth");
         Class<?> perms = Class.forName("com.chess.entities.GameAnalysisPermissions");
 

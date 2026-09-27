@@ -154,37 +154,21 @@ val stockfishPatch = bytecodePatch(
         // The Flow interface type is passed to the extension (const-class of the method's
         // return type) so the extension never needs to know obfuscated coroutine class names.
         // ─────────────────────────────────────────────────────────────────
+        // a(ComputerAnalysisConfiguration config, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine, boolean skillsEnabled)
         val repoMethod = GameAnalysisRepositoryGetGameAnalysisFingerprint.method
         val repoReturnType = repoMethod.returnType
-        if (repoMethod.parameterTypes[0].toString() == "Lcom/chess/entities/ComputerAnalysisConfiguration;") {
-            // 4.10.17+: a(ComputerAnalysisConfiguration config, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine, boolean skillsEnabled)
-            repoMethod.addInstructions(
-                0,
-                """
-                    const-class v0, $repoReturnType
-                    move-object/from16 v1, p1
-                    move-object/from16 v2, p5
-                    invoke-static {v0, v1, v2}, $EXTENSION_CLASS->getLocalAnalysisFlowForConfig(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
-                    move-result-object v0
-                    check-cast v0, $repoReturnType
-                    return-object v0
-                """
-            )
-        } else {
-            // 4.9.x / 4.10.0: b(CompatGameIdAndType, String pgn, UserSide, Coach, Set, AnalysisDepth, AnalysisEngine)
-            repoMethod.addInstructions(
-                0,
-                """
-                    const-class v0, $repoReturnType
-                    move-object/from16 v1, p2
-                    move-object/from16 v2, p6
-                    invoke-static {v0, v1, v2}, $EXTENSION_CLASS->getLocalAnalysisFlowForPgn(Ljava/lang/Class;Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
-                    move-result-object v0
-                    check-cast v0, $repoReturnType
-                    return-object v0
-                """
-            )
-        }
+        repoMethod.addInstructions(
+            0,
+            """
+                const-class v0, $repoReturnType
+                move-object/from16 v1, p1
+                move-object/from16 v2, p5
+                invoke-static {v0, v1, v2}, $EXTENSION_CLASS->getLocalAnalysisFlowForConfig(Ljava/lang/Class;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+                move-result-object v0
+                check-cast v0, $repoReturnType
+                return-object v0
+            """
+        )
 
         // The engine-line preview is rebuilt by the app from the eval PV; returning null makes
         // the review fall back to the (always valid) played/best move, which avoids crashes on

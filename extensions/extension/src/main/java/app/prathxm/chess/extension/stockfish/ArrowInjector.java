@@ -29,11 +29,10 @@ public class ArrowInjector {
     };
 
 
-    // ── Version-independent access to CBViewModelStateImpl.moveArrows ─────────────────────
+    // ── Access to CBViewModelStateImpl.moveArrows ─────────────────────────────────────────
     //
-    // The obfuscated names change between Chess.com releases (4.10.0: setter a2 / HintArrow k0,
-    // 4.10.17: setter G2 / getter f5 / HintArrow g0). We resolve them from the generic
-    // signatures: moveArrows is the only List<HintArrow> property, and HintArrow is the class
+    // The members are obfuscated (4.10.17: setter G2 / getter f5 / HintArrow g0), so they are
+    // resolved from the generic signatures instead of by name: moveArrows is the only List<HintArrow> property, and HintArrow is the class
     // in the movesinput package whose constructor starts with (Square, Square).
 
     private static volatile Method cachedSetter, cachedGetter;
@@ -121,8 +120,7 @@ public class ArrowInjector {
     }
 
     /**
-     * Creates a HintArrow. 4.10.0: (from, to, Boolean isKnight, Integer color, Float opacity, Z, Z);
-     * 4.10.17: (from, to, Integer color, Float opacity, Z persistent, Z animated).
+     * Creates a HintArrow: (from, to, Integer color, Float opacity, Z persistent, Z animated).
      */
     private static Object newArrow(Class<?> arrowClass, Object from, Object to, int color, float opacity) throws Exception {
         Constructor<?> best = null;
