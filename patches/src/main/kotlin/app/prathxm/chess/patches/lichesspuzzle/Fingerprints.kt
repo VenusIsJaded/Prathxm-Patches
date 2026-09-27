@@ -10,8 +10,8 @@ import app.morphe.patcher.Fingerprint
 object NewDailyPuzzleGetFingerprint : Fingerprint(
     custom = { method, classDef ->
         classDef.type == "Lcom/chess/features/puzzles/daily/net/NewDailyPuzzleServiceImpl;" &&
-            // 4.9.x/4.10.0: a(String, Continuation); 4.10.17: b(String, Continuation)
-            (method.name == "a" || method.name == "b") &&
+            // b(String, Continuation)
+            method.name == "b" &&
             method.parameterTypes.size == 2 &&
             method.parameterTypes[0] == "Ljava/lang/String;" &&
             method.returnType == "Ljava/lang/Object;"
@@ -19,7 +19,7 @@ object NewDailyPuzzleGetFingerprint : Fingerprint(
 )
 
 object NewDailyPuzzleSubmitFingerprint : Fingerprint(
-    // 4.10.17: a(long id, v2.DailyPuzzleAction, v2.DailyPuzzleHintState, Integer, Integer, Continuation)
+    // a(long id, v2.DailyPuzzleAction, v2.DailyPuzzleHintState, Integer, Integer, Continuation)
     custom = { method, classDef ->
         classDef.type == "Lcom/chess/features/puzzles/daily/net/NewDailyPuzzleServiceImpl;" &&
             method.name == "a" &&

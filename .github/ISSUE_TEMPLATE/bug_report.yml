@@ -32,7 +32,7 @@ body:
     attributes:
       label: App version
       description: 'Please provide the version of the app that is causing the issue.'
-      placeholder: '4.9.49'
+      placeholder: '4.10.17-googleplay'
     validations:
       required: true
   - type: input

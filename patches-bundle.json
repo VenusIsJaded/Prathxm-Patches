@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-09-27T12:00:00",
-  "description": "## 1.16.0\n\n### ✨ Features\n\n* **Chess.com:** support for Chess.com **4.10.17** / **4.10.17-googleplay**; all patches apply (4.9.49 and 4.10.0 remain supported)\n\n### 🔧 Improvements\n\n* **Chess.com:** Game Review hook adapts to the new `ComputerAnalysisConfiguration` repository API; result, Flow and AnalyzedGameData types are resolved by structure instead of hardcoded obfuscated names\n* **Chess.com:** board arrows, HintArrow and review-item hooks are matched by signature so they survive renames between versions\n* **Chess.com:** Lichess Puzzles use the new `puzzles.v2` protos (long puzzle ids, hard-mode field)\n* **Chess.com:** Unlock All Bots and SessionStore fingerprints updated for the renamed getters\n* **Build:** the bundle declares `Patcher-Version: 1.14.1` (the morphe-patcher it is compiled against), so it loads in current Morphe Manager releases (stable and 1.33.0-dev)\n* **Build:** `scripts/build_mpp_local.sh` now compiles the Kotlin patches too; new `scripts/verify_apk.sh` desktop harness checks the extension against real app classes",
-  "download_url": "https://github.com/VenusIsJaded/Prathxm-Patches/releases/download/v1.16.0/patches-1.16.0.mpp",
+  "created_at": "2026-09-27T22:00:00",
+  "description": "## 1.17.0\n\n### ✨ Features\n\n* **Chess.com:** new **Unlimited Play Coach** patch: Play Coach is no longer limited to one free game per day (the coach quota check always passes and finished coach games are not counted)\n\n### 🚀 Updated App Support\n\n* **Chess.com:** only **4.10.17** / **4.10.17-googleplay** are supported (recommended: 4.10.17-googleplay); 4.9.49 and 4.10.0 were dropped along with their compatibility code\n\n### 🔧 Improvements\n\n* **Chess.com:** fingerprints match the exact 4.10.17 signatures instead of guessing between versions\n* **Build:** the extension no longer bundles an unused Kotlin runtime (extension.mpe 2.35 MB → 255 KB); the build fails if Kotlin runtime classes ever end up in it",
+  "download_url": "https://github.com/VenusIsJaded/Prathxm-Patches/releases/download/v1.17.0/patches-1.17.0.mpp",
   "signature_download_url": "",
-  "version": "1.16.0"
+  "version": "1.17.0"
 }

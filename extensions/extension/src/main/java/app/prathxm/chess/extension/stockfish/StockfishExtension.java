@@ -603,11 +603,9 @@ public class StockfishExtension {
     /**
      * Colour the user plays from the board's {@code Side} value (WHITE, BLACK, BOTH, NONE).
      *
-     * <p>The accessor for the side's colour is obfuscated differently in every Chess.com release
-     * (4.10.0: {@code d()}, 4.10.17: {@code c()}); the old lookup by those names threw on
-     * 4.10.17, so "Arrows only on my turn" silently showed arrows for both sides. The enum
-     * constant names are not obfuscated, so they are checked first; the Color-returning
-     * accessor is found by return type as a fallback.
+     * <p>The accessor for the side's colour is obfuscated ({@code c()} in 4.10.17), but the enum
+     * constant names are not, so they are checked first; the Color-returning accessor is found
+     * by return type as a fallback.
      *
      * @return TRUE for white, FALSE for black, null if the user plays both sides or neither
      */
@@ -771,8 +769,8 @@ public class StockfishExtension {
     }
 
     /**
-     * Game Review entry point for Chess.com 4.10.17+, where the repository receives a
-     * ComputerAnalysisConfiguration instead of a PGN string.
+     * Game Review entry point: the repository receives a ComputerAnalysisConfiguration whose
+     * PGN is replayed through the local engine.
      *
      * @param flowClass the app's (obfuscated) coroutine Flow interface, supplied by the patch
      */
@@ -786,11 +784,6 @@ public class StockfishExtension {
         } catch (Throwable t) {
             Log.e(TAG, "getLocalAnalysisFlowForConfig: could not read PGN", t);
         }
-        return getLocalAnalysisFlowForPgn(flowClass, pgn, analysisDepth);
-    }
-
-    /** Game Review entry point for Chess.com 4.9.x / 4.10.0 (the repository receives the PGN). */
-    public static Object getLocalAnalysisFlowForPgn(Class<?> flowClass, String pgn, Object analysisDepth) {
         Log.d(TAG, "getLocalAnalysisFlow pgn: " + (pgn != null ? (pgn.substring(0, Math.min(pgn.length(), 30)) + "...") : "null"));
         return LocalAnalysisFlow.createFlow(flowClass, pgn, analysisDepth);
     }
@@ -915,8 +908,8 @@ public class StockfishExtension {
     /**
      * Builds the neutral review item that replaces an un-renderable one: the played move marked
      * as a book move with a 0.00 score and no continuation. Constructed reflectively from the
-     * result type's constructor so it works with every MoveInfo layout
-     * (4.10.0: api.k with 7 params, 4.10.17: api.l with 8 params).
+     * result type's constructor (MoveInfo is api.l with 8 params in 4.10.17), filling
+     * parameters by type.
      *
      * @param resultClass     the review item pair type (api.d) supplied by the patch
      * @param positionAndMove the history entry (chessboard.history.i) for this ply
