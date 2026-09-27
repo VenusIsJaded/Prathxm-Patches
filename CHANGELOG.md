@@ -1,3 +1,18 @@
+## [1.17.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/5) (2026-09-27)
+
+### ✨ Features
+
+* **Chess.com:** new **Unlimited Play Coach** patch: Play Coach is no longer limited to one free game per day (the coach quota check always passes and finished coach games are not counted)
+
+### 🚀 Updated App Support
+
+* **Chess.com:** only **4.10.17** / **4.10.17-googleplay** are supported (recommended: 4.10.17-googleplay); 4.9.49 and 4.10.0 were dropped along with their compatibility code
+
+### 🔧 Improvements
+
+* **Chess.com:** fingerprints match the exact 4.10.17 signatures instead of guessing between versions
+* **Build:** the extension no longer bundles an unused Kotlin runtime (extension.mpe 2.35 MB → 255 KB); the build fails if Kotlin runtime classes ever end up in it
+
 ## [1.16.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/3) (2026-09-27)
 
 ### ✨ Features

@@ -3,7 +3,7 @@
 # ♟️ Prathxm Patches
 
 **Offline Stockfish 19 for the Chess.com Android app.**
-Full game reviews, live analysis for bots and practice, no ads, all bots unlocked. It runs on your phone and needs no internet.
+Full game reviews, live analysis for bots and practice, unlimited Play Coach, no ads, all bots unlocked. It runs on your phone and needs no internet.
 
 [![Latest release](https://img.shields.io/github/v/release/VenusIsJaded/Prathxm-Patches?style=flat-square&label=release&color=81B64C)](https://github.com/VenusIsJaded/Prathxm-Patches/releases/latest)
 ![Engine](https://img.shields.io/badge/engine-Stockfish%2019%20NNUE-262421?style=flat-square)
@@ -26,6 +26,7 @@ Full game reviews, live analysis for bots and practice, no ads, all bots unlocke
 | 🧩 **Offline Lichess puzzles** | Millions of puzzles on a journey map, with streaks, Puzzle Rush and themed practice. |
 | 🚫 **Ad-free** | Banners, interstitials and video ads are removed. |
 | 🤖 **Every bot unlocked** | All Versus Bots can be played, including the premium ones. |
+| 🧑‍🏫 **Unlimited Play Coach** | Play Coach is no longer limited to one free game per day. |
 
 > [!NOTE]
 > Fair play is built in. Engine arrows, bars and alerts are switched off automatically in live online games.
@@ -41,7 +42,7 @@ Full game reviews, live analysis for bots and practice, no ads, all bots unlocke
    ```
    https://github.com/VenusIsJaded/Prathxm-Patches
    ```
-3. Pick **Chess.com** and a supported version (see below). Leave the default patches selected and tap **Patch**.
+3. Pick **Chess.com 4.10.17** (the only supported version, see below). Leave the default patches selected and tap **Patch**.
 
 ### Morphe CLI
 
@@ -77,7 +78,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 ## 🩹 Patches
 
 <!-- PATCHES_START -->
-**Supported Chess.com versions:** `4.9.49` · `4.9.49-googleplay` · `4.10.0` · `4.10.0-googleplay` · `4.10.17` · `4.10.17-googleplay`
+**Supported Chess.com version:** `4.10.17` · `4.10.17-googleplay` (recommended: `4.10.17-googleplay`)
 
 | Patch | What it does | Default |
 | :-- | :-- | :-: |
@@ -85,6 +86,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 | **Lichess Puzzles** | Replaces the puzzle section with offline Lichess puzzles and no daily limits | ✅ |
 | **Ad-Free** | Removes all advertisements | ✅ |
 | **Unlock All Bots** | Unlocks every premium and restricted bot | ✅ |
+| **Unlimited Play Coach** | Removes the one-free-game-per-day limit on Play Coach | ✅ |
 | **Global Crash Handler** | Shows a readable crash screen instead of closing silently | ✅ |
 | **Custom Titles** | Shows fun custom titles on some user profiles | ✅ |
 | **Clone Chess.com** | Installs as `com.chess.prathxm` so it can sit next to the official app | ➖ |
@@ -101,7 +103,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 
 # Build the .mpp without registry access (compiles patches + extension, bundles Stockfish 19)
 scripts/setup_tools.sh               # one-time: JDK 17, kotlinc, morphe-cli, smali, dex2jar
-scripts/build_mpp_local.sh 1.16.0   # output: out/patches-1.16.0.mpp
+scripts/build_mpp_local.sh 1.17.0   # output: out/patches-1.17.0.mpp
 
 # Verify the extension's reflection against a real Chess.com APKM (desktop JVM)
 scripts/verify_apk.sh com.chess_4.10.17.apkm com.google.android.xh4
