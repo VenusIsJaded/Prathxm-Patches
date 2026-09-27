@@ -29,9 +29,10 @@ public class StockfishBridge {
         final StockfishProcess.AnalysisResult result;
         final int depth;
         final int multiPV;
-        final boolean limited;
+        /** 0 = full strength, otherwise the UCI_Elo the result was searched with. */
+        final int limited;
 
-        CacheEntry(StockfishProcess.AnalysisResult result, int depth, int multiPV, boolean limited) {
+        CacheEntry(StockfishProcess.AnalysisResult result, int depth, int multiPV, int limited) {
             this.result = result;
             this.depth = depth;
             this.multiPV = multiPV;
@@ -81,20 +82,37 @@ public class StockfishBridge {
         return analyze(fen, depth, multiPV).moves;
     }
 
-    /** Returns a cached result for the position if one exists that is at least as deep. */
-    public static StockfishProcess.AnalysisResult getCached(String fen, int depth, int multiPV, boolean limited) {
-        String key = positionKey(fen);
-        if (key == null) return null;
-        synchronized (cache) {
-            CacheEntry e = cache.get(key);
-            if (e != null && e.depth >= depth && e.multiPV >= multiPV && e.limited == limited) {
-                return e.result;
-            }
-        }
-        return null;
+    /** Strength key for the cache: 0 = full strength, otherwise the clamped Elo. */
+    private static int strengthKey(Context ctx) {
+        if (!StockfishSettings.isLimitStrength(ctx)) return 0;
+        return Math.max(1320, Math.min(3190, StockfishSettings.getElo(ctx)));
     }
 
-    private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, boolean limited) {
+    /**
+     * Returns a cached result for the position if one exists that is at least as deep and was
+     * searched at the same strength. A result with more lines than requested is trimmed, so e.g.
+     * browsing a reviewed game (3 lines) still shows only the number of arrows the user chose.
+     */
+    public static StockfishProcess.AnalysisResult getCached(String fen, int depth, int multiPV, int limited) {
+        String key = positionKey(fen);
+        if (key == null) return null;
+        CacheEntry e;
+        synchronized (cache) {
+            e = cache.get(key);
+        }
+        if (e == null || e.depth < depth || e.multiPV < multiPV || e.limited != limited) return null;
+        return trimLines(e.result, multiPV);
+    }
+
+    private static StockfishProcess.AnalysisResult trimLines(StockfishProcess.AnalysisResult r, int multiPV) {
+        if (r.moves.size() <= multiPV) return r;
+        java.util.List<String> moves = new java.util.ArrayList<>(r.moves.subList(0, multiPV));
+        float[] lines = java.util.Arrays.copyOf(r.lineScores, Math.min(multiPV, r.lineScores.length));
+        return new StockfishProcess.AnalysisResult(moves, r.score, r.hasMate, r.mateIn,
+                r.wdlWin, r.wdlDraw, r.wdlLoss, r.ponder, r.pv, lines, r.depth, r.terminal);
+    }
+
+    private static void putCache(String fen, StockfishProcess.AnalysisResult r, int depth, int multiPV, int limited) {
         if (r == null || !r.isValid()) return;
         // Never cache a search that was interrupted before reaching the requested depth.
         if (!r.terminal && !r.hasMate && r.depth < depth) return;
@@ -102,7 +120,9 @@ public class StockfishBridge {
         if (key == null) return;
         synchronized (cache) {
             CacheEntry old = cache.get(key);
-            if (old == null || old.depth <= depth || old.limited != limited) {
+            // Keep the more informative entry: deeper wins; at equal depth, more lines win.
+            if (old == null || old.limited != limited || depth > old.depth
+                    || (depth == old.depth && multiPV >= old.multiPV)) {
                 cache.put(key, new CacheEntry(r, depth, multiPV, limited));
             }
         }
@@ -136,7 +156,7 @@ public class StockfishBridge {
         Context ctx = getApplicationContext();
         if (ctx == null) return StockfishProcess.AnalysisResult.empty();
 
-        boolean limited = StockfishSettings.isLimitStrength(ctx);
+        int limited = strengthKey(ctx);
         StockfishProcess.AnalysisResult cached = getCached(fen, depth, multiPV, limited);
         if (cached != null) return cached;
 
@@ -162,7 +182,7 @@ public class StockfishBridge {
         Context ctx = getApplicationContext();
         if (ctx == null) return StockfishProcess.AnalysisResult.empty();
 
-        StockfishProcess.AnalysisResult cached = getCached(positionFen, depth, multiPV, false);
+        StockfishProcess.AnalysisResult cached = getCached(positionFen, depth, multiPV, 0);
         if (cached != null) return cached;
 
         if (!ensureRunning(ctx)) return StockfishProcess.AnalysisResult.empty();
@@ -178,7 +198,7 @@ public class StockfishBridge {
                 r = engine.analyze(ctx, positionFen, null, depth, multiPV, movetimeMs, false);
             }
         }
-        putCache(positionFen, r, depth, multiPV, false);
+        putCache(positionFen, r, depth, multiPV, 0);
         return r;
     }
 
