@@ -2,8 +2,8 @@
 # Build a patches .mpp locally WITHOUT the Morphe Gradle plugin (which needs GitHub
 # Packages credentials).
 #
-# The v1.13.1 release bundle is only used as a skeleton (Kotlin runtime + R classes of the
-# extension). Everything that matters is rebuilt from this repository:
+# The v1.13.1 release bundle is only used as a skeleton (directory layout). Everything inside
+# it is rebuilt from this repository:
 #   - patch classes             (patches/src/main/kotlin, compiled with kotlinc against
 #                                morphe-cli; shipped both as JVM classes and as classes.dex)
 #   - extensions/extension.mpe  (all Java extension code in this repo, compiled with javac + D8)
@@ -14,7 +14,7 @@
 # Usage: scripts/build_mpp_local.sh [version]
 set -euo pipefail
 
-VERSION="${1:-1.16.0}"
+VERSION="${1:-1.17.0}"
 BASE_RELEASE="v1.13.1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${WORK_DIR:-$HOME/mpp-build}"
@@ -69,13 +69,6 @@ cp -r kcls/app kcls/util bundle/
 cp kcls/META-INF/*.kotlin_module bundle/META-INF/
 cp pdex/classes.dex bundle/classes.dex
 
-echo "== Keeping Kotlin runtime + R classes from the base extension"
-rm -rf basesmali keep && java -jar baksmali.jar d bundle/extensions/extension.mpe -o basesmali
-mkdir -p keep/app/prathxm/chess/extension
-cp -r basesmali/kotlin basesmali/org keep/
-cp basesmali/app/prathxm/chess/extension/R*.smali keep/app/prathxm/chess/extension/
-java -jar smali.jar a keep -o keep.dex --api 26
-
 echo "== Compiling extension"
 rm -rf bc cls d8out && mkdir -p bc/app/prathxm/chess/extension cls d8out
 cat > bc/app/prathxm/chess/extension/BuildConfig.java <<EOF
@@ -93,7 +86,14 @@ javac -encoding UTF-8 -nowarn --release 11 -cp android.jar -d cls \
   bc/app/prathxm/chess/extension/BuildConfig.java \
   $(find "$ROOT/extensions/extension/src/main/java" -name "*.java")
 java -cp r8.jar com.android.tools.r8.D8 --release --min-api 26 --lib android.jar \
-  --output d8out $(find cls -name "*.class") keep.dex
+  --output d8out $(find cls -name "*.class")
+
+# The extension is plain Java and must not ship a Kotlin runtime: the patcher merges extension
+# classes into same-named app classes, and the app's R8-minified kotlin.* classes would get
+# foreign members grafted onto them (e.g. an uninitialised kotlin.Unit.INSTANCE).
+if java -jar baksmali.jar l classes d8out/classes.dex | grep -qE '^L(kotlin|kotlinx|org/jetbrains|org/intellij)/'; then
+  echo "Extension dex contains Kotlin runtime classes"; exit 1
+fi
 
 echo "== Verifying every extension method called by the patches exists"
 rm -rf patchsmali newsmali
