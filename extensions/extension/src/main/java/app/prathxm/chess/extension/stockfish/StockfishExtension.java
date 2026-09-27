@@ -331,6 +331,7 @@ public class StockfishExtension {
             StockfishBridge.stopSearch();
         }
 
+        final String jobKey = posKey;
         currentJob = executor.submit(() -> {
             try {
                 Context context = getContext();
@@ -340,7 +341,15 @@ public class StockfishExtension {
                 int multiPV = StockfishSettings.getMultiPV(context);
 
                 Log.d(TAG, "Analysing FEN at depth " + depth + " with MultiPV=" + multiPV + "…");
-                StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV);
+                // Stream intermediate depths to the board so deep searches feel instant.
+                StockfishProcess.AnalysisResult result = StockfishBridge.analyze(fen, depth, multiPV,
+                        partial -> {
+                            if (isStale(jobKey)) return;
+                            displayLiveResult(context, fen, partial, false);
+                        });
+
+                // The user moved on while we were searching: never paint an outdated result.
+                if (isStale(jobKey)) return;
 
                 if (result.moves.isEmpty()) {
                     Log.d(TAG, "Engine returned no best moves.");
@@ -355,49 +364,8 @@ public class StockfishExtension {
 
                 MoveClassifier.classifyMoveIfPossible(context, fen, result);
 
-                Log.i(TAG, "Best moves: " + result.moves + ", Score: " + result.score);
-                
-                boolean isLive = false;
-                Activity activity = getCurrentActivity();
-                if (activity != null && isLiveMatch(activity)) {
-                    isLive = true;
-                }
-                boolean disableOverlays = isLive && !isReviewMode;
-
-                boolean showArrows = !disableOverlays && StockfishSettings.isArrowsVisible(context);
-                if (showArrows && StockfishSettings.isMySideOnly(context)) {
-                    Boolean userWhite = isUserWhite(getStateImpl());
-                    if (userWhite != null) {
-                        boolean isWhiteTurn = isWhiteTurnFromFen(fen);
-                        if (isWhiteTurn != userWhite) {
-                            showArrows = false;
-                        }
-                    }
-                }
-
-                if (showArrows) {
-                    ArrowInjector.injectEngineArrows(context, getStateImpl(), result.moves, result.ponder);
-                } else {
-                    ArrowInjector.clearEngineArrows(getStateImpl());
-                }
-
-                if (!disableOverlays && StockfishSettings.isEvalBarEnabled(context)) {
-                    OverlayManager.updateEvalBar(result.score, result.hasMate, result.mateIn, getStateImpl());
-                } else {
-                    OverlayManager.hideEvalBar();
-                }
-
-                if (!disableOverlays && StockfishSettings.isWdlEnabled(context)) {
-                    OverlayManager.updateWdlBar(result.wdlWin, result.wdlDraw, result.wdlLoss);
-                } else {
-                    OverlayManager.hideWdlBar();
-                }
-
-                if (!disableOverlays && result.hasMate && StockfishSettings.isMateAnnouncementEnabled(context)) {
-                    OverlayManager.showMateAnnouncement(result.mateIn);
-                } else {
-                    OverlayManager.hideMateAnnouncement();
-                }
+                Log.i(TAG, "Best moves: " + result.moves + ", Score: " + result.score + ", depth " + result.depth);
+                displayLiveResult(context, fen, result, true);
 
             } catch (Throwable t) {
                 if (!Thread.currentThread().isInterrupted()) {
@@ -405,6 +373,67 @@ public class StockfishExtension {
                 }
             }
         });
+    }
+
+    /** True if the running job was cancelled or a newer position has been scheduled. */
+    private static boolean isStale(String jobKey) {
+        if (Thread.currentThread().isInterrupted()) return true;
+        String latest = lastScheduledKey;
+        return jobKey != null && !jobKey.equals(latest);
+    }
+
+    /**
+     * Paints an analysis result (arrows, eval bar, WDL bar, mate banner). Intermediate results
+     * ({@code isFinal == false}) only update arrows and bars; the mate banner waits for the
+     * final search so it does not flicker.
+     */
+    private static void displayLiveResult(Context context, String fen,
+                                          StockfishProcess.AnalysisResult result, boolean isFinal) {
+        if (result == null || result.moves.isEmpty()) return;
+        if (!StockfishSettings.isEngineEnabled(context)) return;
+
+        boolean isLive = false;
+        Activity activity = getCurrentActivity();
+        if (activity != null && isLiveMatch(activity)) {
+            isLive = true;
+        }
+        boolean disableOverlays = isLive && !isReviewMode;
+
+        boolean showArrows = !disableOverlays && StockfishSettings.isArrowsVisible(context);
+        if (showArrows && StockfishSettings.isMySideOnly(context)) {
+            Boolean userWhite = isUserWhite(getStateImpl());
+            if (userWhite != null) {
+                boolean isWhiteTurn = isWhiteTurnFromFen(fen);
+                if (isWhiteTurn != userWhite) {
+                    showArrows = false;
+                }
+            }
+        }
+
+        if (showArrows) {
+            ArrowInjector.injectEngineArrows(context, getStateImpl(), result.moves, result.ponder);
+        } else if (isFinal) {
+            ArrowInjector.clearEngineArrows(getStateImpl());
+        }
+
+        if (!disableOverlays && StockfishSettings.isEvalBarEnabled(context)) {
+            OverlayManager.updateEvalBar(result.score, result.hasMate, result.mateIn, getStateImpl());
+        } else {
+            OverlayManager.hideEvalBar();
+        }
+
+        if (!disableOverlays && StockfishSettings.isWdlEnabled(context)) {
+            OverlayManager.updateWdlBar(result.wdlWin, result.wdlDraw, result.wdlLoss);
+        } else {
+            OverlayManager.hideWdlBar();
+        }
+
+        if (!isFinal) return;
+        if (!disableOverlays && result.hasMate && StockfishSettings.isMateAnnouncementEnabled(context)) {
+            OverlayManager.showMateAnnouncement(result.mateIn);
+        } else {
+            OverlayManager.hideMateAnnouncement();
+        }
     }
 
     private static boolean isWhiteTurnFromFen(String fen) {

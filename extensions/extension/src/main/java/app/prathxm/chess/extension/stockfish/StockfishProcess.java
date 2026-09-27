@@ -175,6 +175,20 @@ public class StockfishProcess {
         }
     }
 
+    /**
+     * Receives intermediate results of a running search (live analysis only), so the
+     * arrows / eval bar can follow the search as it deepens instead of waiting for the
+     * final depth. Called on the thread that runs the search.
+     */
+    public interface ProgressListener {
+        void onProgress(AnalysisResult partial);
+    }
+
+    /** Intermediate results are only published from this depth on (earlier ones are noise). */
+    private static final int PROGRESS_MIN_DEPTH = 10;
+    /** Minimum time between two intermediate results. */
+    private static final long PROGRESS_INTERVAL_MS = 300;
+
     // ── Analysis API ──────────────────────────────────────────────────────────
 
     public List<String> bestMoves(Context context, String fen, int depth, int multiPV) {
@@ -201,6 +215,13 @@ public class StockfishProcess {
      */
     public AnalysisResult analyze(Context context, String fen, List<String> uciMoves, int depth,
                                   int multiPV, int movetimeMs, boolean honorLimit) {
+        return analyze(context, fen, uciMoves, depth, multiPV, movetimeMs, honorLimit, null);
+    }
+
+    /** As above, optionally publishing intermediate results to {@code progress}. */
+    public AnalysisResult analyze(Context context, String fen, List<String> uciMoves, int depth,
+                                  int multiPV, int movetimeMs, boolean honorLimit,
+                                  ProgressListener progress) {
         if (!isReady() || fen == null) return AnalysisResult.empty();
         multiPV = Math.max(1, multiPV);
         depth = Math.max(1, depth);
@@ -238,7 +259,8 @@ public class StockfishProcess {
             send(movetimeMs > 0 ? ("go depth " + depth + " movetime " + movetimeMs) : ("go depth " + depth));
 
             return readSearchOutput(multiPV, whiteToMove,
-                    movetimeMs > 0 ? movetimeMs + BESTMOVE_GRACE_MS : DEFAULT_SEARCH_TIMEOUT_MS);
+                    movetimeMs > 0 ? movetimeMs + BESTMOVE_GRACE_MS : DEFAULT_SEARCH_TIMEOUT_MS,
+                    depth, progress);
         } catch (IOException e) {
             Log.e(TAG, "analyze error: " + e.getMessage());
             ready = false;
@@ -270,7 +292,8 @@ public class StockfishProcess {
 
     // ── Output parsing ────────────────────────────────────────────────────────
 
-    private AnalysisResult readSearchOutput(int multiPV, boolean whiteToMove, long timeoutMs) throws IOException {
+    private AnalysisResult readSearchOutput(int multiPV, boolean whiteToMove, long timeoutMs,
+                                            int targetDepth, ProgressListener progress) throws IOException {
         String[] firstMoves = new String[multiPV];
         float[] scores = new float[multiPV];
         boolean[] haveExact = new boolean[multiPV];
@@ -287,6 +310,8 @@ public class StockfishProcess {
 
         long deadline = System.currentTimeMillis() + timeoutMs;
         boolean stopSent = false;
+        int reportedDepth = 0;
+        long lastReport = 0;
 
         String line;
         while (true) {
@@ -422,7 +447,40 @@ public class StockfishProcess {
                     bestPv = pv;
                 }
             }
+
+            // Publish a snapshot once the best line of a new depth is exact. The other lines
+            // may still be from the previous depth, which is fine for a live preview.
+            if (progress != null && idx == 0 && !bound && !stopSent
+                    && depth >= PROGRESS_MIN_DEPTH && depth > reportedDepth && depth < targetDepth
+                    && firstMoves[0] != null) {
+                long now = System.currentTimeMillis();
+                if (now - lastReport >= PROGRESS_INTERVAL_MS) {
+                    reportedDepth = depth;
+                    lastReport = now;
+                    try {
+                        progress.onProgress(buildResult(multiPV, firstMoves, scores, haveAny, hasMate,
+                                mateIn, wdlW, wdlD, wdlL,
+                                bestPv != null && bestPv.size() > 1 ? bestPv.get(1) : null,
+                                bestPv, depth, false, null));
+                    } catch (Throwable ignored) {
+                        // A failing listener must never break the search.
+                    }
+                }
+            }
         }
+
+        return buildResult(multiPV, firstMoves, scores, haveAny, hasMate, mateIn, wdlW, wdlD, wdlL,
+                ponder, bestPv, reachedDepth, terminal, bestmove);
+    }
+
+    private static AnalysisResult buildResult(int multiPV, String[] firstMovesIn, float[] scoresIn,
+                                              boolean[] haveAny, boolean hasMate, int mateIn,
+                                              int wdlW, int wdlD, int wdlL, String ponder,
+                                              List<String> bestPv, int reachedDepth,
+                                              boolean terminal, String bestmove) {
+        // Work on copies: intermediate snapshots are taken while the search keeps writing.
+        String[] firstMoves = firstMovesIn.clone();
+        float[] scores = scoresIn.clone();
 
         List<String> moves = new ArrayList<>(multiPV);
         List<Float> lineScoreList = new ArrayList<>(multiPV);
@@ -492,10 +550,13 @@ public class StockfishProcess {
                 totalMb = mi.totalMem / (1024L * 1024L);
             }
         } catch (Throwable ignored) {}
-        if (totalMb >= 11_000) return 512;
-        if (totalMb >= 7_000) return 256;
-        if (totalMb >= 5_000) return 128;
-        if (totalMb >= 3_000) return 64;
+        // A deep MultiPV review search visits tens of millions of nodes per position; at the
+        // old sizes the table was overwritten constantly. These sizes stay well below what the
+        // low-memory killer tolerates for a foreground app's child process.
+        if (totalMb >= 11_000) return 768;
+        if (totalMb >= 7_000) return 512;
+        if (totalMb >= 5_000) return 256;
+        if (totalMb >= 3_000) return 128;
         return 32;
     }
 

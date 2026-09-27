@@ -123,7 +123,16 @@ public class StockfishBridge {
     }
 
     /** Live analysis of a single FEN (honours the Elo limit setting). */
-    public static synchronized StockfishProcess.AnalysisResult analyze(String fen, int depth, int multiPV) {
+    public static StockfishProcess.AnalysisResult analyze(String fen, int depth, int multiPV) {
+        return analyze(fen, depth, multiPV, null);
+    }
+
+    /**
+     * Live analysis that also streams intermediate results (from depth 10 on) to
+     * {@code progress}, so the UI updates while a deep search is still running.
+     */
+    public static synchronized StockfishProcess.AnalysisResult analyze(String fen, int depth, int multiPV,
+                                                                       StockfishProcess.ProgressListener progress) {
         Context ctx = getApplicationContext();
         if (ctx == null) return StockfishProcess.AnalysisResult.empty();
 
@@ -132,10 +141,10 @@ public class StockfishBridge {
         if (cached != null) return cached;
 
         if (!ensureRunning(ctx)) return StockfishProcess.AnalysisResult.empty();
-        StockfishProcess.AnalysisResult r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true);
+        StockfishProcess.AnalysisResult r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
         if (!r.isValid() && !engine.isReady()) {
             // Engine crashed on this position; restart once and retry.
-            if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true);
+            if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
         }
         putCache(fen, r, depth, multiPV, limited);
         return r;
