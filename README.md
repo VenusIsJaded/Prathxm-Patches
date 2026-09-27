@@ -1,122 +1,139 @@
-<p align="center">
-  <img src="https://img.shields.io/badge/Platform-Android-3DDC84?style=for-the-badge&logo=android&logoColor=white" />
-  <img src="https://img.shields.io/badge/Engine-Stockfish_19-4A90D9?style=for-the-badge&logo=chess.com&logoColor=white" />
-  <img src="https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge" />
-</p>
+<div align="center">
 
-<h1 align="center">♟️ Prathxm Patches</h1>
+# ♟️ Prathxm Patches
 
-<p align="center">
-  Custom Morphe patches for <b>Chess.com</b> on Android. Enables fully offline analysis powered by local Stockfish 19 NNUE, ad-free usage, locked bots bypass, and Lichess puzzles.
-</p>
+**Offline Stockfish 19 for the Chess.com Android app.**
+Full game reviews, live analysis for bots and practice, no ads, all bots unlocked. It runs on your phone and needs no internet.
 
-<p align="center">
-  <a href="https://github.com/PrathxmOp/Prathxm-Patches/discussions"><img src="https://img.shields.io/badge/Discussions-Join_Community-6e5494?style=flat-square&logo=github" /></a>
-  <a href="https://github.com/PrathxmOp/Prathxm-Patches/releases"><img src="https://img.shields.io/badge/Releases-Latest-green?style=flat-square&logo=github" /></a>
-</p>
+[![Latest release](https://img.shields.io/github/v/release/VenusIsJaded/Prathxm-Patches?style=flat-square&label=release&color=81B64C)](https://github.com/VenusIsJaded/Prathxm-Patches/releases/latest)
+![Engine](https://img.shields.io/badge/engine-Stockfish%2019%20NNUE-262421?style=flat-square)
+![Android](https://img.shields.io/badge/android-8.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white)
+[![License](https://img.shields.io/badge/license-GPLv3-blue?style=flat-square)](LICENSE)
 
----
+[**Download**](https://github.com/VenusIsJaded/Prathxm-Patches/releases/latest) · [Install](#-install) · [Using it](#-using-it) · [Patches](#-patches) · [Build](#-build-from-source)
 
-## 📖 About & Features
-
-Prathxm Patches embeds a native **Stockfish 19 NNUE** chess engine directly into the Chess.com Android app for fully offline analysis and game reviews. All analysis features are programmatically disabled during live online matches to ensure fair play.
-
-### 🌟 Key Features
-- **Local Stockfish 19 & Offline Reviews**: Centipawn evaluation, Win/Draw/Loss tracking, move classification (Brilliant, Great, etc.), ELO estimation, and configurable bot strengths.
-- **Offline Lichess Puzzles**: Complete puzzle journey map featuring millions of offline puzzles, streaking, and thematic practice.
-- **Ad-Free UI & Unlocked Bots**: Banners, interstitial ads, and video promotions are removed. All Versus Bots are fully unlocked.
-- **Panic Mode**: Toggle all overlays instantly.
+</div>
 
 ---
 
-## 🎮 Gestures & Panic Mode
+## ✨ What you get
 
-Access features by interacting with the Chess.com logo on the main screen:
-- **Tap & Hold** → Opens the settings menu.
-- **Double-Tap** → Toggles **Panic Mode** (instantly hides/shows all overlays).
+| | |
+| :-- | :-- |
+| 🧠 **Stockfish 19 NNUE on your phone** | This is the newest official Stockfish. It uses every CPU core and a hash table sized to your RAM, and it picks the fastest instruction set your phone supports. |
+| 📊 **Accurate Game Review** | Every move is rated with a win-probability model: Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder and Miss. Reviews always run at full strength and use the full move history, so repetitions and the 50-move rule are taken into account. |
+| 🎯 **Live analysis** | Best-move arrows, an evaluation bar, a Win/Draw/Loss bar, threat arrows and mate alerts. These only work in bot, practice and analysis games. |
+| 🧩 **Offline Lichess puzzles** | Millions of puzzles on a journey map, with streaks, Puzzle Rush and themed practice. |
+| 🚫 **Ad-free** | Banners, interstitials and video ads are removed. |
+| 🤖 **Every bot unlocked** | All Versus Bots can be played, including the premium ones. |
+
+> [!NOTE]
+> Fair play is built in. Engine arrows, bars and alerts are switched off automatically in live online games.
 
 ---
 
+## 📲 Install
+
+### Morphe Manager (recommended)
+
+1. Install [**Morphe Manager**](https://morphe.software).
+2. Add this repository as a patch source: tap **[Add source](https://morphe.software/add-source?github=VenusIsJaded/Prathxm-Patches)**, or go to **Patch sources** and paste:
+   ```
+   https://github.com/VenusIsJaded/Prathxm-Patches
+   ```
+3. Pick **Chess.com** and a supported version (see below). Leave the default patches selected and tap **Patch**.
+
+### Morphe CLI
+
+Download `patches-<version>.mpp` from the [latest release](https://github.com/VenusIsJaded/Prathxm-Patches/releases/latest), then run:
+
+```bash
+java -jar morphe-cli.jar patch -p patches-<version>.mpp -o chess-patched.apk com.chess.apk
+```
+
+> [!TIP]
+> If you want to keep the original Chess.com app installed next to the patched one, turn on the **Clone Chess.com** patch.
+
+---
+
+## 🎮 Using it
+
+Everything is controlled from the **top bar of the home screen**, where the Chess.com logo is:
+
+| Gesture | What it does |
+| :-- | :-- |
+| **Press and hold** | Opens **Engine Settings** |
+| **Double-tap** | **Panic mode**: turns every engine overlay off or on instantly |
+
+**Recommended settings**
+
+- **Analysis depth 18–22** is a good balance of strength and speed on most phones. Higher depths are stronger but slower and drain more battery.
+- **CPU threads** are set to all cores by default. Lower this only if your phone gets hot.
+- **Game Review extra depth** adds depth on top of the Chess.com review preset (Fast, Standard, Deep or Maximum) when you want the most accurate reviews.
+- **Limit engine strength (Elo)** only changes the live arrows. Game reviews always run at full strength.
+
+---
 
 ## 🩹 Patches
 
 <!-- PATCHES_START -->
-> **[v1.13.1](https://github.com/PrathxmOp/Prathxm-Patches/releases/tag/v1.13.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;7 patches total
-<details>
-<summary>📦 Chess.com&nbsp;&nbsp;•&nbsp;&nbsp;7 patches</summary>
-<br>
+**Supported Chess.com versions:** `4.9.49` · `4.9.49-googleplay` · `4.10.0` · `4.10.0-googleplay`
 
-**🎯 Supported versions:**
-
-| 4.9.49 | 4.9.49-googleplay | 4.10.0 | 4.10.0-googleplay |
-| :---: | :---: | :---: | :---: |
-
-| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
-|----------|----------------|-----------|
-| [Ad-Free](#ad-free) | Removes advertisements |  |
-| [Clone Chess.com](#clone-chess-com) | Changes the package name to com.chess.prathxm, allowing the patched app to be installed side-by-side with the original Chess.com app. |  |
-| [Custom Titles](#custom-titles) | Fetches and applies custom titles for users from a remote database. DM PrathxmOp to get yours for fun lol! |  |
-| [Global Crash Handler](#global-crash-handler) | Catches uncaught exceptions and displays a custom crash screen with details to report issues. |  |
-| [Lichess Puzzles](#lichess-puzzles) | Loads daily puzzles from Lichess and bypasses Chess.com puzzle premium limits. |  |
-| [Local Stockfish Analysis](#local-stockfish-analysis) | Enables local Stockfish engine for post-game review & analysis. |  |
-| [Unlock All Bots](#unlock-all-bots) | Unlocks all premium and restricted bots in the Versus Bots feature. |  |
-
-</details>
-
+| Patch | What it does | Default |
+| :-- | :-- | :-: |
+| **Local Stockfish Analysis** | Adds the offline Stockfish 19 engine for game reviews and live analysis | ✅ |
+| **Lichess Puzzles** | Replaces the puzzle section with offline Lichess puzzles and no daily limits | ✅ |
+| **Ad-Free** | Removes all advertisements | ✅ |
+| **Unlock All Bots** | Unlocks every premium and restricted bot | ✅ |
+| **Global Crash Handler** | Shows a readable crash screen instead of closing silently | ✅ |
+| **Custom Titles** | Shows fun custom titles on some user profiles | ✅ |
+| **Clone Chess.com** | Installs as `com.chess.prathxm` so it can sit next to the official app | ➖ |
 <!-- PATCHES_END -->
 
 ---
 
-## 🛠️ Installation
+## 🛠️ Build from source
 
-### Option 1 · Morphe Manager <sup>Recommended</sup>
+```bash
+# Full build (needs a GitHub token with read access to the Morphe package registry)
+./.github/scripts/download_stockfish.sh
+./gradlew patches:buildAndroid
 
-1. Install [**Morphe Manager**](https://morphe.software) on your Android device.
-2. Add this repository as a patch source:
-   <p align="center">
-     <a href="https://morphe.software/add-source?github=PrathxmOp/Prathxm-Patches"><b>➕ Add Patches to Morphe Manager</b></a>
-   </p>
-   Or manually add `https://github.com/PrathxmOp/Prathxm-Patches` under **Patch Sources**.
-3. Select **Chess.com**, choose your patches, and tap **Patch**.
-
-### Option 2 · Morphe CLI <sup>Advanced</sup>
-
-1. Clone the repository and compile the patches bundle:
-   ```bash
-   ./gradlew patches:assemble
-   ```
-2. Apply the compiled patch bundle to your Chess.com APK using `morphe-cli`:
-   ```bash
-   java -jar morphe-cli.jar patch \
-     -p patches/build/libs/patches-X.X.X.mpp \
-     -o patched-chess.apk \
-     "com.chess.apk"
-   ```
+# Build the .mpp without registry access (rebuilds the extension and bundles Stockfish 19)
+scripts/build_mpp_local.sh 1.15.0   # output: out/patches-1.15.0.mpp
+```
 
 ---
 
-## 💖 Support the Project
+## ❓ FAQ
 
-If you like these patches, consider supporting development!
-- **🏅 Donate for a Custom Title**: Donors receive a custom title displayed on their profile. DM **PrathxmOp** after donating to claim yours.
+<details>
+<summary><b>Game Review is slow</b></summary>
 
-<p align="center">
-  <b>UPI:</b> <code>prathammishraop@ybl</code><br><br>
-  <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=upi://pay?pa=prathammishraop@ybl%26pn=Prathxm%26cu=INR" alt="UPI QR Code" width="140" height="140" /><br>
-  <a href="upi://pay?pa=prathammishraop@ybl&pn=Prathxm&cu=INR"><b>⚡ Tap to Donate via UPI</b></a>
-</p>
+Review speed depends on the Chess.com depth preset, your extra-depth setting and your phone's CPU. Try the **Standard** preset or lower the extra depth. Positions that have already been analysed are cached, so opening the same game again is instant.
+</details>
+
+<details>
+<summary><b>I don't see arrows or the eval bar</b></summary>
+
+Check that the engine is enabled in Engine Settings and that panic mode is off (double-tap the top bar). Overlays are also hidden on purpose in live online games.
+</details>
+
+<details>
+<summary><b>Which phones are supported?</b></summary>
+
+Any phone running Android 8.0 or newer on arm64-v8a or armeabi-v7a. On 64-bit phones Stockfish picks the fastest instruction set the CPU supports.
+</details>
 
 ---
 
-## 💬 Community
+## 🙏 Credits
 
-Questions, feedback, or title claims? Reach out:
-- [**GitHub Discussions**](https://github.com/PrathxmOp/Prathxm-Patches/discussions)
-- [**Signal Private Message**](https://signal.me/#eu/5hn89XV1PsUQlPRc0WhEoUEh197WioxzFJj-CTXOGe1Boymy0-FCub3zwWXa_L3a)
+- Original project by [**PrathxmOp**](https://github.com/PrathxmOp/Prathxm-Patches)
+- [Stockfish](https://stockfishchess.org) by the Stockfish developers (GPLv3)
+- Puzzles from the [Lichess open database](https://database.lichess.org) (CC0)
+- Built for the [Morphe](https://morphe.software) patcher
 
----
+## ⚖️ License & disclaimer
 
-## ⚠️ Disclaimer & License
-
-- **Disclaimer**: For educational and personal use only. Usage may violate the terms of service. The author is not responsible for any account bans.
-- **License**: Licensed under the [GNU General Public License v3.0](LICENSE).
+Licensed under the [GNU GPL v3.0](LICENSE). This project is for educational and personal use. Modifying the app may break Chess.com's terms of service, so use it at your own risk. The authors are not responsible for account actions.
