@@ -1,3 +1,18 @@
+## [1.16.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/3) (2026-09-27)
+
+### ✨ Features
+
+* **Chess.com:** support for Chess.com **4.10.17** / **4.10.17-googleplay**; all patches apply (4.9.49 and 4.10.0 remain supported)
+
+### 🔧 Improvements
+
+* **Chess.com:** Game Review hook adapts to the new `ComputerAnalysisConfiguration` repository API; result, Flow and AnalyzedGameData types are resolved by structure instead of hardcoded obfuscated names
+* **Chess.com:** board arrows, HintArrow and review-item hooks are matched by signature so they survive renames between versions
+* **Chess.com:** Lichess Puzzles use the new `puzzles.v2` protos (long puzzle ids, hard-mode field)
+* **Chess.com:** Unlock All Bots and SessionStore fingerprints updated for the renamed getters
+* **Build:** the bundle declares `Patcher-Version: 1.14.1` (the morphe-patcher it is compiled against), so it loads in current Morphe Manager releases (stable and 1.33.0-dev)
+* **Build:** `scripts/build_mpp_local.sh` now compiles the Kotlin patches too; new `scripts/verify_apk.sh` desktop harness checks the extension against real app classes
+
 ## [1.15.0](https://github.com/VenusIsJaded/Prathxm-Patches/releases/tag/v1.15.0) (2026-09-27)
 
 ### 🔧 Improvements

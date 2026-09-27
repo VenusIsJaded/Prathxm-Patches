@@ -20,7 +20,9 @@ object Constants {
             AppTarget(version = "4.9.49"),
             AppTarget(version = "4.9.49-googleplay"),
             AppTarget(version = "4.10.0"),
-            AppTarget(version = "4.10.0-googleplay")
+            AppTarget(version = "4.10.0-googleplay"),
+            AppTarget(version = "4.10.17"),
+            AppTarget(version = "4.10.17-googleplay")
         )
     )
 }

@@ -38,83 +38,14 @@ public class LocalAnalysisFlow {
         }
     }
 
-    private static class VersionGroup {
-        String flowName;
-        String collectorName;
-        String continuationName;
-        
-        VersionGroup(String flowName, String collectorName, String continuationName) {
-            this.flowName = flowName;
-            this.collectorName = collectorName;
-            this.continuationName = continuationName;
-        }
-    }
-
-    private static class ResolvedGroup {
-        Class<?> flowClass;
-        Class<?> collectorClass;
-        Class<?> continuationClass;
-    }
-
-    private static ResolvedGroup cachedGroup = null;
-
-    private static synchronized ResolvedGroup resolveVersionGroup() throws ClassNotFoundException {
-        if (cachedGroup != null) {
-            return cachedGroup;
-        }
-
-        String version = "";
+    /**
+     * Returns a Flow (the app's obfuscated coroutine Flow interface, passed in by the patch) that
+     * runs a full local Stockfish review of {@code pgn} when collected.
+     */
+    public static Object createFlow(final Class<?> flowClass, final String pgn, final Object analysisDepthObj) {
         try {
-            android.content.Context ctx = StockfishExtension.getContext();
-            if (ctx != null) {
-                version = ctx.getPackageManager().getPackageInfo(ctx.getPackageName(), 0).versionName;
-            }
-        } catch (Throwable ignored) {}
-
-        boolean isV10 = version != null && version.startsWith("4.10.");
-
-        VersionGroup[] targetGroups;
-        if (isV10) {
-            targetGroups = new VersionGroup[] {
-                new VersionGroup("com.google.android.hb4", "com.google.android.bc4", "com.google.android.i02"),
-                new VersionGroup("android.view.inputmethod.hb4", "android.view.inputmethod.bc4", "android.view.inputmethod.i02"),
-                new VersionGroup("com.google.android.g74", "com.google.android.a84", "com.google.android.o02"),
-                new VersionGroup("android.view.inputmethod.g74", "android.view.inputmethod.a84", "android.view.inputmethod.o02")
-            };
-        } else {
-            targetGroups = new VersionGroup[] {
-                new VersionGroup("com.google.android.g74", "com.google.android.a84", "com.google.android.o02"),
-                new VersionGroup("android.view.inputmethod.g74", "android.view.inputmethod.a84", "android.view.inputmethod.o02"),
-                new VersionGroup("com.google.android.hb4", "com.google.android.bc4", "com.google.android.i02"),
-                new VersionGroup("android.view.inputmethod.hb4", "android.view.inputmethod.bc4", "android.view.inputmethod.i02")
-            };
-        }
-
-        for (VersionGroup group : targetGroups) {
-            try {
-                Class<?> flow = loadClassSafe(group.flowName);
-                Class<?> collector = loadClassSafe(group.collectorName);
-                Class<?> continuation = loadClassSafe(group.continuationName);
-
-                if (flow.isInterface() && collector.isInterface() && continuation.isInterface()) {
-                    ResolvedGroup resolved = new ResolvedGroup();
-                    resolved.flowClass = flow;
-                    resolved.collectorClass = collector;
-                    resolved.continuationClass = continuation;
-                    cachedGroup = resolved;
-                    return resolved;
-                }
-            } catch (ClassNotFoundException e) {
-                // Try next group
-            }
-        }
-        throw new ClassNotFoundException("Could not resolve a compatible coroutine flow version group.");
-    }
-
-    public static Object createFlow(final String pgn, final Object analysisDepthObj) {
-        try {
-            ResolvedGroup group = resolveVersionGroup();
-            Class<?> g74Class = group.flowClass;
+            final AppTypes types = AppTypes.get(flowClass);
+            Class<?> g74Class = types.flowClass;
 
             return Proxy.newProxyInstance(
                 g74Class.getClassLoader(),
@@ -125,7 +56,7 @@ public class LocalAnalysisFlow {
                         if (method.getName().equals("collect")) {
                             // args[0] is the flow collector (a84)
                             // args[1] is the continuation (o02)
-                            runCollect(pgn, analysisDepthObj, args[0], args[1]);
+                            runCollect(types, pgn, analysisDepthObj, args[0], args[1]);
                             return getUnitInstance();
                         }
                         if (method.getName().equals("toString")) {
@@ -141,13 +72,12 @@ public class LocalAnalysisFlow {
         }
     }
 
-    private static void runCollect(String pgn, Object analysisDepthObj, Object collector, Object continuation) {
+    private static void runCollect(AppTypes types, String pgn, Object analysisDepthObj, Object collector, Object continuation) {
         StockfishExtension.isReviewMode = true;
         Activity activity = StockfishExtension.getCurrentActivity();
                 Object dummyContinuation = null;
         try {
-            ResolvedGroup group = resolveVersionGroup();
-            Class<?> o02Class = group.continuationClass;
+            Class<?> o02Class = types.continuationClass;
             dummyContinuation = Proxy.newProxyInstance(
                 o02Class.getClassLoader(),
                 new Class<?>[]{o02Class},
@@ -198,21 +128,11 @@ public class LocalAnalysisFlow {
             final int reviewMultiPV = 3;
 
             // Get Reflection Classes
-            Class<?> inProgressClass = loadClassSafe("com.chess.gamereview.repository.h$b");
-            Class<?> completedClass = loadClassSafe("com.chess.gamereview.repository.h$d");
-            Class<?> failureClass = loadClassSafe("com.chess.gamereview.repository.h$a");
             Class<?> adClass = loadClassSafe("com.chess.entities.AnalysisDepth");
-            Class<?> mClass = loadClassSafe("com.chess.gamereview.repository.m");
-            Class<?> maClass = loadClassSafe("com.chess.gamereview.repository.m$a");
-            
-            ResolvedGroup group = resolveVersionGroup();
-            Class<?> a84Class = group.collectorClass;
-            Class<?> o02Class = group.continuationClass;
+            Method emitMethod = types.emitMethod;
 
-            Method emitMethod = a84Class.getMethod("emit", Object.class, o02Class);
-
-            // Get sourceEnum = m.a.a (singleton)
-            Object sourceEnum = maClass.getField("a").get(null);
+            // Analysis source = the "Ceac" (engine analysis) singleton
+            Object sourceEnum = types.ceacSource;
 
             // Get depthEnum = adObj or AnalysisDepth.STANDARD
             Object depthEnum = analysisDepthObj;
@@ -222,7 +142,7 @@ public class LocalAnalysisFlow {
 
             // Emit initial Progress
             // InProgress(float progress, AnalysisDepth depth, m source)
-            Constructor<?> ipConstructor = inProgressClass.getConstructor(float.class, adClass, mClass);
+            Constructor<?> ipConstructor = types.inProgressCtor;
             Object initialProgress = ipConstructor.newInstance(0.0f, depthEnum, sourceEnum);
             emitMethod.invoke(collector, initialProgress, dummyContinuation != null ? dummyContinuation : continuation);
 
@@ -311,19 +231,19 @@ public class LocalAnalysisFlow {
             }
 
             // Map Stockfish analysis outputs to AnalyzedGameData's AnalyzedPositions
-            Class<?> apClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition");
+            Class<?> apClass = types.agd("$AnalyzedPosition");
             Class<?> colorClass = Class.forName("com.chess.entities.Color");
-            Class<?> pmClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$PlayedMove");
-            Class<?> smClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$SuggestedMove");
-            Class<?> bmClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$BestMove");
-            Class<?> scClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$Scenarios");
-            Class<?> evalClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$Eval");
-            Class<?> seClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$SkillsEarned");
+            Class<?> pmClass = types.agd("$AnalyzedPosition$PlayedMove");
+            Class<?> smClass = types.agd("$AnalyzedPosition$SuggestedMove");
+            Class<?> bmClass = types.agd("$AnalyzedPosition$BestMove");
+            Class<?> scClass = types.agd("$AnalyzedPosition$Scenarios");
+            Class<?> evalClass = types.agd("$AnalyzedPosition$Eval");
 
             Constructor<?> apConstructor = apClass.getConstructor(colorClass, pmClass, smClass, bmClass, String.class, scClass);
-            Constructor<?> pmConstructor = pmClass.getConstructor(
-                String.class, float.class, Integer.class, String.class, evalClass, List.class, String.class, seClass
-            );
+            // PlayedMove: 4.10.0 (depth, score, mateIn, moveLan, eval, speech, coachEmotion, skillsEarned)
+            //            4.10.17 (depth, score, mateIn, moveLan, eval, speech, coachEmotion, skills, skillsHash, boardMarkings)
+            // Both start with the same 7 parameters; the rest are optional and default to null/empty.
+            Constructor<?> pmConstructor = AppTypes.primaryCtor(pmClass);
             Constructor<?> smConstructor = smClass.getConstructor(
                 float.class, Integer.class, String.class, evalClass, List.class, String.class
             );
@@ -463,16 +383,16 @@ public class LocalAnalysisFlow {
                     for (int k = 0; k < resultAfter.pv.size() && k < 7; k++) playedPv.add(resultAfter.pv.get(k));
                 }
                 Integer playedMateIn = resultAfter.hasMate ? resultAfter.mateIn : null;
-                Object playedMove = pmConstructor.newInstance(
-                    String.valueOf(Math.max(searchDepth, resultAfter.depth)),
-                    evalAfter,
-                    playedMateIn,
-                    safePlayed,
-                    evalConstructor.newInstance(playedPv, pvCutoff(playedPv)),
-                    new ArrayList<>(),
-                    null,
-                    null
-                );
+                Object[] pmArgs = new Object[pmConstructor.getParameterTypes().length];
+                for (int k = 0; k < pmArgs.length; k++) pmArgs[k] = AppTypes.defaultFor(pmConstructor.getParameterTypes()[k]);
+                pmArgs[0] = String.valueOf(Math.max(searchDepth, resultAfter.depth)); // depth
+                pmArgs[1] = evalAfter;                                                // score
+                pmArgs[2] = playedMateIn;                                             // mateIn
+                pmArgs[3] = safePlayed;                                               // moveLan
+                pmArgs[4] = evalConstructor.newInstance(playedPv, pvCutoff(playedPv)); // eval
+                pmArgs[5] = new ArrayList<>();                                        // speech
+                pmArgs[6] = null;                                                     // coachEmotion
+                Object playedMove = pmConstructor.newInstance(pmArgs);
 
                 String suggestedLan = bestLan != null ? bestLan : safePlayed;
                 List<String> suggestedPv = bestLan != null ? linePv(resultBefore.pv, bestLan) : playedPv;
@@ -494,14 +414,14 @@ public class LocalAnalysisFlow {
             }
 
             // Tallies Construction
-            Class<?> mtClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$Tallies$MovesTally");
+            Class<?> mtClass = types.agd("$Tallies$MovesTally");
             Constructor<?> mtConstructor = mtClass.getConstructor(
                 int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class, int.class
             );
             Object whiteTally = mtConstructor.newInstance(wT[0], wT[1], wT[2], wT[3], wT[4], wT[5], wT[6], wT[7], wT[8], wT[9], wT[10]);
             Object blackTally = mtConstructor.newInstance(bT[0], bT[1], bT[2], bT[3], bT[4], bT[5], bT[6], bT[7], bT[8], bT[9], bT[10]);
 
-            Class<?> talliesClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$Tallies");
+            Class<?> talliesClass = types.agd("$Tallies");
             Constructor<?> talliesConstructor = talliesClass.getConstructor(mtClass, mtClass, String.class, String.class);
             Object tallies = talliesConstructor.newInstance(whiteTally, blackTally, "Game Summary", "Game Summary Play");
 
@@ -509,20 +429,20 @@ public class LocalAnalysisFlow {
             float wAcc = ReviewMath.gameAccuracy(wAll);
             float bAcc = ReviewMath.gameAccuracy(bAll);
 
-            Class<?> accClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AccuracyScores$Accuracy");
+            Class<?> accClass = types.agd("$AccuracyScores$Accuracy");
             Constructor<?> accConstructor = accClass.getConstructor(float.class, Float.class, Float.class, Float.class);
             Object whiteAcc = accConstructor.newInstance(wAcc, phaseAcc(wPhase.get(0)), phaseAcc(wPhase.get(1)), phaseAcc(wPhase.get(2)));
             Object blackAcc = accConstructor.newInstance(bAcc, phaseAcc(bPhase.get(0)), phaseAcc(bPhase.get(1)), phaseAcc(bPhase.get(2)));
 
-            Class<?> accScoresClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$AccuracyScores");
+            Class<?> accScoresClass = types.agd("$AccuracyScores");
             Constructor<?> accScoresConstructor = accScoresClass.getConstructor(accClass, accClass);
             Object accuracyScores = accScoresConstructor.newInstance(whiteAcc, blackAcc);
 
             // ReportCard Setup
-            Class<?> rcClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$ReportCard");
-            Class<?> repClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$ReportCard$Report");
-            Class<?> glyphsClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$ReportCard$Report$Glyphs");
-            Class<?> catClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$ReportCard$CategoryRating");
+            Class<?> rcClass = types.agd("$ReportCard");
+            Class<?> repClass = types.agd("$ReportCard$Report");
+            Class<?> glyphsClass = types.agd("$ReportCard$Report$Glyphs");
+            Class<?> catClass = types.agd("$ReportCard$CategoryRating");
 
             Constructor<?> rcConstructor = rcClass.getConstructor(repClass, repClass, String.class);
             Constructor<?> repConstructor = repClass.getConstructor(Integer.class, glyphsClass, List.class);
@@ -554,64 +474,47 @@ public class LocalAnalysisFlow {
             Object reportCard = rcConstructor.newInstance(whiteReport, blackReport, "Local analysis complete.");
 
             // Themes Setup
-            Class<?> twClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$Themes$ThemesWeights");
+            Class<?> twClass = types.agd("$Themes$ThemesWeights");
             Constructor<?> twConstructor = twClass.getConstructor(Map.class, Map.class);
             Object themesWeights = twConstructor.newInstance(new HashMap<String, Integer>(), new HashMap<String, Integer>());
 
-            Class<?> themesClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$Themes");
+            Class<?> themesClass = types.agd("$Themes");
             Constructor<?> themesConstructor = themesClass.getConstructor(twClass);
             Object themes = themesConstructor.newInstance(themesWeights);
 
             // Build the final AnalyzedGameData
-            Class<?> agdClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData");
-            Class<?> openingInfoClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$OpeningInfo");
-            Class<?> arcPlayerScenariosClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$ArcPlayerScenarios");
-            Class<?> gameContinuationClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$GameContinuation");
-            Class<?> ceeInfoClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$CeeInfo");
-            Class<?> ceacRequestMetadataClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$CeacRequestMetadata");
-            Class<?> takeawaysClass = Class.forName("com.chess.gamereview.repository.AnalyzedGameData$Takeaways");
+            Class<?> agdClass = types.agd("");
 
-            Constructor<?> agdConstructor = agdClass.getConstructor(
-                String.class, // startingFen
-                talliesClass, // tallies
-                accScoresClass, // accuracyScores
-                List.class, // positions
-                Integer.class, // bookPly (lastBookMoveOffset)
-                openingInfoClass, // openingInfo
-                String.class, // arc
-                arcPlayerScenariosClass, // arcPlayerScenarios
-                gameContinuationClass, // playMayContinue
-                themesClass, // themes
-                ceeInfoClass, // cee
-                ceacRequestMetadataClass, // metaData
-                rcClass, // reportCard
-                String.class, // analysisStrength
-                String.class, // gameSummary
-                String.class, // gameSummaryAudioUrlHash
-                String.class, // gameSummaryCoachEmotion
-                takeawaysClass // takeaways
-            );
-
-            Object gameData = agdConstructor.newInstance(
-                startingFen,
-                tallies,
-                accuracyScores,
-                positions,
-                0,
-                null,
-                "",
-                null,
-                null,
-                themes,
-                null,
-                null,
-                reportCard,
-                "depth_" + searchDepth,
-                "Local Stockfish analysis complete.",
-                null,
-                null,
-                null
-            );
+            // AnalyzedGameData primary constructor. Layout differs by version:
+            //  4.10.0 : (startingFen, tallies, accuracyScores, positions, Integer bookPly, openingInfo, arc,
+            //            arcPlayerScenarios, playMayContinue, themes, cee, metaData, reportCard,
+            //            analysisStrength, gameSummary, gameSummaryAudioUrlHash, gameSummaryCoachEmotion, takeaways)
+            //  4.10.17: bookPly removed, GameResult gameResult appended.
+            // Fill by type in declaration order; unknown/optional parameters get null/0/empty.
+            Constructor<?> agdConstructor = AppTypes.primaryCtor(agdClass);
+            Class<?>[] agdTypes = agdConstructor.getParameterTypes();
+            Object[] agdArgs = new Object[agdTypes.length];
+            int stringSlot = 0;
+            String[] strings = {
+                startingFen,                          // startingFen
+                "",                                   // arc (non-null)
+                "depth_" + searchDepth,               // analysisStrength
+                "Local Stockfish analysis complete.", // gameSummary
+                null,                                 // gameSummaryAudioUrlHash
+                null                                  // gameSummaryCoachEmotion
+            };
+            for (int k = 0; k < agdTypes.length; k++) {
+                Class<?> t = agdTypes[k];
+                if (t == String.class) agdArgs[k] = stringSlot < strings.length ? strings[stringSlot++] : null;
+                else if (t == talliesClass) agdArgs[k] = tallies;
+                else if (t == accScoresClass) agdArgs[k] = accuracyScores;
+                else if (t == List.class) agdArgs[k] = positions;
+                else if (t == Integer.class) agdArgs[k] = 0;          // bookPly (4.10.0 only)
+                else if (t == themesClass) agdArgs[k] = themes;
+                else if (t == rcClass) agdArgs[k] = reportCard;
+                else agdArgs[k] = AppTypes.defaultFor(t);             // openingInfo, cee, gameResult, ...
+            }
+            Object gameData = agdConstructor.newInstance(agdArgs);
 
             // Get permissions — construct directly with all-true to avoid obfuscated companion field names
             Class<?> permissionsClass = Class.forName("com.chess.entities.GameAnalysisPermissions");
@@ -622,7 +525,7 @@ public class LocalAnalysisFlow {
             Object fullPermissions = permConstructor.newInstance(true, true, true, true, null);
 
             // Emit RemoteAnalysisCompleted to trigger Review UI
-            Constructor<?> compConstructor = completedClass.getConstructor(agdClass, permissionsClass, adClass);
+            Constructor<?> compConstructor = types.completedCtor;
             Object completedResult = compConstructor.newInstance(gameData, fullPermissions, depthEnum);
             emitMethod.invoke(collector, completedResult, dummyContinuation != null ? dummyContinuation : continuation);
 
@@ -630,12 +533,8 @@ public class LocalAnalysisFlow {
             logToFile(activity, "EXCEPTION: " + Log.getStackTraceString(t), true);
             Log.e(TAG, "Local stockfish analysis failed", t);
             try {
-                Class<?> failureClass = loadClassSafe("com.chess.gamereview.repository.h$a");
-                ResolvedGroup group = resolveVersionGroup();
-                Class<?> a84Class = group.collectorClass;
-                Class<?> o02Class = group.continuationClass;
-                Method emitMethod = a84Class.getMethod("emit", Object.class, o02Class);
-                Constructor<?> failConstructor = failureClass.getConstructor(Throwable.class);
+                Method emitMethod = types.emitMethod;
+                Constructor<?> failConstructor = types.failureCtor;
                 Object failureResult = failConstructor.newInstance(t);
                 emitMethod.invoke(collector, failureResult, dummyContinuation != null ? dummyContinuation : continuation);
             } catch (Throwable emitErr) {

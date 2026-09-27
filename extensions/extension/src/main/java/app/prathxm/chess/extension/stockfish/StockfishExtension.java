@@ -301,8 +301,7 @@ public class StockfishExtension {
                 public void run() {
                     try {
                         ArrowInjector.isInjecting.set(true);
-                        Method a2 = finalStateImpl.getClass().getMethod("a2", List.class);
-                        a2.invoke(finalStateImpl, finalAppArrows);
+                        ArrowInjector.setMoveArrows(finalStateImpl, finalAppArrows);
                         invalidateAllBoards();
                     } catch (Throwable t) {
                         Log.e(TAG, "Failed to inject merged arrows in onArrowsChanged: " + t.getMessage());
@@ -741,18 +740,29 @@ public class StockfishExtension {
         return false;
     }
 
-    public static Object getLocalAnalysisFlow(
-        Object repository,
-        Object gameIdAndType,
-        String pgn,
-        Object userSide,
-        Object coach,
-        java.util.Set<?> allowedSources,
-        Object analysisDepth,
-        Object analysisEngine
-    ) {
-        Log.d(TAG, "getLocalAnalysisFlow called with pgn: " + (pgn != null ? (pgn.substring(0, Math.min(pgn.length(), 30)) + "...") : "null"));
-        return LocalAnalysisFlow.createFlow(pgn, analysisDepth);
+    /**
+     * Game Review entry point for Chess.com 4.10.17+, where the repository receives a
+     * ComputerAnalysisConfiguration instead of a PGN string.
+     *
+     * @param flowClass the app's (obfuscated) coroutine Flow interface, supplied by the patch
+     */
+    public static Object getLocalAnalysisFlowForConfig(Class<?> flowClass, Object config, Object analysisDepth) {
+        String pgn = null;
+        try {
+            if (config != null) {
+                Object v = config.getClass().getMethod("getPgn").invoke(config);
+                if (v instanceof String) pgn = (String) v;
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "getLocalAnalysisFlowForConfig: could not read PGN", t);
+        }
+        return getLocalAnalysisFlowForPgn(flowClass, pgn, analysisDepth);
+    }
+
+    /** Game Review entry point for Chess.com 4.9.x / 4.10.0 (the repository receives the PGN). */
+    public static Object getLocalAnalysisFlowForPgn(Class<?> flowClass, String pgn, Object analysisDepth) {
+        Log.d(TAG, "getLocalAnalysisFlow pgn: " + (pgn != null ? (pgn.substring(0, Math.min(pgn.length(), 30)) + "...") : "null"));
+        return LocalAnalysisFlow.createFlow(flowClass, pgn, analysisDepth);
     }
 
     public static Object getFullGameAnalysisPermissions() {
@@ -772,7 +782,7 @@ public class StockfishExtension {
     public static Object getPlayedMove(Object positionObj) {
         if (positionObj == null) return null;
         try {
-            Class<?> pmClass = positionObj.getClass().getClassLoader().loadClass("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$PlayedMove");
+            Class<?> pmClass = positionObj.getClass().getClassLoader().loadClass(positionObj.getClass().getName() + "$PlayedMove");
             for (Field f : positionObj.getClass().getDeclaredFields()) {
                 if (f.getType().equals(pmClass)) {
                     f.setAccessible(true);
@@ -788,7 +798,7 @@ public class StockfishExtension {
     public static Object getSuggestedMove(Object positionObj) {
         if (positionObj == null) return null;
         try {
-            Class<?> smClass = positionObj.getClass().getClassLoader().loadClass("com.chess.gamereview.repository.AnalyzedGameData$AnalyzedPosition$SuggestedMove");
+            Class<?> smClass = positionObj.getClass().getClassLoader().loadClass(positionObj.getClass().getName() + "$SuggestedMove");
             for (Field f : positionObj.getClass().getDeclaredFields()) {
                 if (f.getType().equals(smClass)) {
                     f.setAccessible(true);
@@ -870,5 +880,59 @@ public class StockfishExtension {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Builds the neutral review item that replaces an un-renderable one: the played move marked
+     * as a book move with a 0.00 score and no continuation. Constructed reflectively from the
+     * result type's constructor so it works with every MoveInfo layout
+     * (4.10.0: api.k with 7 params, 4.10.17: api.l with 8 params).
+     *
+     * @param resultClass     the review item pair type (api.d) supplied by the patch
+     * @param positionAndMove the history entry (chessboard.history.i) for this ply
+     */
+    public static Object buildDummyMoveResult(Class<?> resultClass, Object positionAndMove) {
+        try {
+            java.lang.reflect.Constructor<?> pairCtor = AppTypes.primaryCtor(resultClass);
+            if (pairCtor == null || pairCtor.getParameterTypes().length == 0) return null;
+            Class<?> moveInfoClass = pairCtor.getParameterTypes()[0];
+            java.lang.reflect.Constructor<?> infoCtor = AppTypes.primaryCtor(moveInfoClass);
+            if (infoCtor == null) return null;
+
+            Class<?> historyClass = Class.forName("com.chess.chessboard.history.i");
+            Class<?> classificationClass = Class.forName("com.chess.compengine.AnalysisMoveClassification");
+            Class<?> scoreClass = Class.forName("com.chess.entities.Score");
+            Class<?> colorClass = Class.forName("com.chess.entities.Color");
+
+            Object position = historyClass.getMethod("e").invoke(positionAndMove);
+            Object side = position.getClass().getMethod("getSideToMove").invoke(position);
+            Object companion = scoreClass.getField("Companion").get(null);
+            Object score = companion.getClass()
+                    .getMethod("from", float.class, Integer.class, colorClass)
+                    .invoke(companion, 0f, null, side);
+            Object book = null;
+            for (Object c : classificationClass.getEnumConstants()) {
+                if ("BOOK".equals(((Enum<?>) c).name())) { book = c; break; }
+            }
+
+            Class<?>[] p = infoCtor.getParameterTypes();
+            Object[] args = new Object[p.length];
+            boolean historyUsed = false;
+            for (int i = 0; i < p.length; i++) {
+                if (p[i] == historyClass && !historyUsed) { args[i] = positionAndMove; historyUsed = true; }
+                else if (p[i] == classificationClass) args[i] = book;
+                else if (p[i] == scoreClass) args[i] = score;
+                else args[i] = AppTypes.defaultFor(p[i]);
+            }
+            Object info = infoCtor.newInstance(args);
+
+            Object[] pairArgs = new Object[pairCtor.getParameterTypes().length];
+            pairArgs[0] = info;
+            for (int i = 1; i < pairArgs.length; i++) pairArgs[i] = AppTypes.defaultFor(pairCtor.getParameterTypes()[i]);
+            return pairCtor.newInstance(pairArgs);
+        } catch (Throwable t) {
+            Log.e(TAG, "buildDummyMoveResult failed", t);
+            return null;
+        }
     }
 }

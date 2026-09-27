@@ -14,7 +14,7 @@ import app.morphe.patcher.Fingerprint
 object BotPersonalityBotGetCanPlayFingerprint : Fingerprint(
     custom = { method, classDef ->
         classDef.type == "Lcom/chess/features/versusbots/Bot\$PersonalityBot;" &&
-            (method.name == "i" || method.name == "k") &&
+            (method.name == "i" || method.name == "k" || method.name == "h") &&
             method.parameterTypes.isEmpty() &&
             method.returnType == "Z"
     }
@@ -23,7 +23,7 @@ object BotPersonalityBotGetCanPlayFingerprint : Fingerprint(
 object BotPersonalityBotGetRequiresActivationFingerprint : Fingerprint(
     custom = { method, classDef ->
         classDef.type == "Lcom/chess/features/versusbots/Bot\$PersonalityBot;" &&
-            (method.name == "E" || method.name == "B") &&
+            (method.name == "E" || method.name == "B" || method.name == "s") &&
             method.parameterTypes.isEmpty() &&
             method.returnType == "Z"
     }

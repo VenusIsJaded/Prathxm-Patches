@@ -84,7 +84,9 @@ val lichessPuzzlePatch = bytecodePatch(
         NewDailyPuzzleGetFingerprint.method.addInstructions(
             0,
             """
-                invoke-static {p1, p2}, $EXTENSION_CLASS->getDailyPuzzle(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
+                move-object/from16 v0, p1
+                move-object/from16 v1, p2
+                invoke-static {v0, v1}, $EXTENSION_CLASS->getDailyPuzzle(Ljava/lang/String;Ljava/lang/Object;)Ljava/lang/Object;
                 move-result-object v0
                 return-object v0
             """
@@ -93,7 +95,11 @@ val lichessPuzzlePatch = bytecodePatch(
         NewDailyPuzzleSubmitFingerprint.method.addInstructions(
             0,
             """
-                invoke-static {p1, p2, p3, p4}, $EXTENSION_CLASS->submitDailyPuzzleAction(ILjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+                # p1:p2 = long dailyPuzzleId (wide), p3 = DailyPuzzleAction, p4 = DailyPuzzleHintState
+                move-wide/from16 v0, p1
+                move-object/from16 v2, p3
+                move-object/from16 v3, p4
+                invoke-static {v0, v1, v2, v3}, $EXTENSION_CLASS->submitDailyPuzzleAction(JLjava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
                 move-result-object v0
                 return-object v0
             """

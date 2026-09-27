@@ -2,19 +2,34 @@
 # Build a patches .mpp locally WITHOUT the Morphe Gradle plugin (which needs GitHub
 # Packages credentials).
 #
-# The patch bytecode (patches/src/main/kotlin) of this release is unchanged, so the compiled
-# patch classes are reused from the official release bundle. What is rebuilt:
+# The v1.13.1 release bundle is only used as a skeleton (Kotlin runtime + R classes of the
+# extension). Everything that matters is rebuilt from this repository:
+#   - patch classes             (patches/src/main/kotlin, compiled with kotlinc against
+#                                morphe-cli; shipped both as JVM classes and as classes.dex)
 #   - extensions/extension.mpe  (all Java extension code in this repo, compiled with javac + D8)
 #   - stockfish binaries        (Stockfish 19, checksum verified)
+#
+# Toolchain (JDK 17, kotlinc 2.4, morphe-cli, ...) comes from scripts/setup_tools.sh.
 #
 # Usage: scripts/build_mpp_local.sh [version]
 set -euo pipefail
 
-VERSION="${1:-1.15.0}"
+VERSION="${1:-1.16.0}"
 BASE_RELEASE="v1.13.1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${WORK_DIR:-$HOME/mpp-build}"
 OUT="$ROOT/out/patches-${VERSION}.mpp"
+TOOLS="${TOOLS:-$HOME/mpp-tools}"
+
+TOOLS="$TOOLS" "$ROOT/scripts/setup_tools.sh" >/dev/null
+export JAVA_HOME="$TOOLS/jdk17" PATH="$TOOLS/jdk17/bin:$PATH"
+
+# Patcher-Version in the bundle manifest must be the version of the morphe-patcher LIBRARY the
+# patches are compiled against (Morphe Manager/CLI refuse bundles that need a newer patcher).
+# It is NOT the morphe-cli version: read it from the patcher inside the jar we compile against.
+PATCHER_VERSION="$(unzip -p "$TOOLS/morphe-cli.jar" app/morphe/patcher/version.properties | sed -n 's/^version=//p' | tr -d '\r')"
+[ -n "$PATCHER_VERSION" ] || { echo "Could not read the patcher version from morphe-cli.jar"; exit 1; }
+echo "== Compiling against morphe-patcher $PATCHER_VERSION"
 
 mkdir -p "$WORK" "$ROOT/out"
 cd "$WORK"
@@ -41,6 +56,19 @@ cd ..
 echo "== Unpacking base bundle"
 rm -rf bundle && mkdir bundle && (cd bundle && unzip -q ../base.mpp)
 
+echo "== Compiling patches (Kotlin)"
+rm -rf kcls pdex && mkdir -p kcls pdex
+JAVA_OPTS="-Xmx700m" "$TOOLS/kotlinc/bin/kotlinc" -nowarn -jvm-target 17 -no-stdlib -no-reflect \
+  -module-name patches -cp "$TOOLS/morphe-cli.jar:$TOOLS/gson.jar:android.jar" -d kcls \
+  $(find "$ROOT/patches/src/main/kotlin" -name "*.kt")
+java -cp r8.jar com.android.tools.r8.D8 --release --min-api 26 --lib android.jar \
+  --classpath "$TOOLS/morphe-cli.jar" --output pdex $(find kcls -name "*.class") 2>&1 | grep -v "^Warning" || true
+[ -s pdex/classes.dex ] || { echo "D8 failed for patch classes"; exit 1; }
+rm -rf bundle/app bundle/util bundle/classes.dex bundle/META-INF/*.kotlin_module
+cp -r kcls/app kcls/util bundle/
+cp kcls/META-INF/*.kotlin_module bundle/META-INF/
+cp pdex/classes.dex bundle/classes.dex
+
 echo "== Keeping Kotlin runtime + R classes from the base extension"
 rm -rf basesmali keep && java -jar baksmali.jar d bundle/extensions/extension.mpe -o basesmali
 mkdir -p keep/app/prathxm/chess/extension
@@ -61,7 +89,7 @@ public final class BuildConfig {
   public static final String PATCH_VERSION = "${VERSION}";
 }
 EOF
-javac -nowarn --release 11 -cp android.jar -d cls \
+javac -encoding UTF-8 -nowarn --release 11 -cp android.jar -d cls \
   bc/app/prathxm/chess/extension/BuildConfig.java \
   $(find "$ROOT/extensions/extension/src/main/java" -name "*.java")
 java -cp r8.jar com.android.tools.r8.D8 --release --min-api 26 --lib android.jar \
@@ -83,7 +111,19 @@ cp d8out/classes.dex bundle/extensions/extension.mpe
 cp sf/stockfish/stockfish-android-arm64-universal bundle/stockfish/arm64-v8a/stockfish
 cp sf/stockfish/stockfish-android-armv7-neon bundle/stockfish/armeabi-v7a/stockfish
 chmod +x bundle/stockfish/*/stockfish
-sed -i "s/^Version: .*/Version: ${VERSION}\r/; s/^Timestamp: .*/Timestamp: $(date +%s)000\r/" bundle/META-INF/MANIFEST.MF
+{
+  printf 'Manifest-Version: 1.0\r\n'
+  printf 'Name: Prathxm Patches\r\n'
+  printf 'Description: Chess.com patches: offline Stockfish 19 analysis & game review, ad-fr\r\n ee, all bots unlocked, offline Lichess puzzles\r\n'
+  printf 'Version: %s\r\n' "$VERSION"
+  printf 'Timestamp: %s000\r\n' "$(date +%s)"
+  printf 'Source: git@github.com:VenusIsJaded/Prathxm-Patches.git\r\n'
+  printf 'Author: Prathxm\r\n'
+  printf 'Contact: github.com/PrathxmOp\r\n'
+  printf 'Website: github.com/VenusIsJaded/Prathxm-Patches\r\n'
+  printf 'License: GPLv3\r\n'
+  printf 'Patcher-Version: %s\r\n\r\n' "$PATCHER_VERSION"
+} > bundle/META-INF/MANIFEST.MF
 
 rm -f "$OUT"
 (cd bundle && zip -q -X -r -D "$OUT" META-INF/MANIFEST.MF META-INF app classes.dex extensions stockfish util)
