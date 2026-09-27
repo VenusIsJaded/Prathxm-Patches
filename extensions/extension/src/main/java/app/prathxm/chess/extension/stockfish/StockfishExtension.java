@@ -581,27 +581,49 @@ public class StockfishExtension {
                 if (sideToPlaySelfEffects == null) return null;
                 
                 Method invokeMethod = sideToPlaySelfEffects.getClass().getMethod("invoke");
+                invokeMethod.setAccessible(true);
                 Object side = invokeMethod.invoke(sideToPlaySelfEffects);
                 if (side == null) return null;
-                
-                Method getColorMethod = null;
-                try {
-                    getColorMethod = side.getClass().getMethod("getColor");
-                } catch (NoSuchMethodException e) {
-                    getColorMethod = side.getClass().getMethod("d");
-                }
-                Object color = getColorMethod.invoke(side);
-                if (color == null) return null;
-                
-                String colorName = color.toString();
-                if ("WHITE".equalsIgnoreCase(colorName)) {
-                    return true;
-                } else if ("BLACK".equalsIgnoreCase(colorName)) {
-                    return false;
-                }
+                return sideToWhite(side);
             }
         } catch (Throwable t) {
             Log.e(TAG, "isUserWhite failed: " + t.getMessage(), t);
+        }
+        return null;
+    }
+
+    /**
+     * Colour the user plays from the board's {@code Side} value (WHITE, BLACK, BOTH, NONE).
+     *
+     * <p>The accessor for the side's colour is obfuscated differently in every Chess.com release
+     * (4.10.0: {@code d()}, 4.10.17: {@code c()}); the old lookup by those names threw on
+     * 4.10.17, so "Arrows only on my turn" silently showed arrows for both sides. The enum
+     * constant names are not obfuscated, so they are checked first; the Color-returning
+     * accessor is found by return type as a fallback.
+     *
+     * @return TRUE for white, FALSE for black, null if the user plays both sides or neither
+     */
+    static Boolean sideToWhite(Object side) {
+        if (side == null) return null;
+        String name = side instanceof Enum ? ((Enum<?>) side).name() : String.valueOf(side);
+        if ("WHITE".equalsIgnoreCase(name)) return Boolean.TRUE;
+        if ("BLACK".equalsIgnoreCase(name)) return Boolean.FALSE;
+        if ("BOTH".equalsIgnoreCase(name) || "NONE".equalsIgnoreCase(name)) return null;
+        try {
+            Class<?> colorClass = Class.forName("com.chess.entities.Color");
+            for (Method m : side.getClass().getMethods()) {
+                if (m.getParameterTypes().length == 0 && m.getReturnType() == colorClass) {
+                    m.setAccessible(true);
+                    Object color = m.invoke(side);
+                    if (color == null) return null;
+                    String c = color instanceof Enum ? ((Enum<?>) color).name() : color.toString();
+                    if ("WHITE".equalsIgnoreCase(c)) return Boolean.TRUE;
+                    if ("BLACK".equalsIgnoreCase(c)) return Boolean.FALSE;
+                    return null;
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "sideToWhite failed: " + t.getMessage());
         }
         return null;
     }
@@ -890,6 +912,53 @@ public class StockfishExtension {
      *
      * @param resultClass     the review item pair type (api.d) supplied by the patch
      * @param positionAndMove the history entry (chessboard.history.i) for this ply
+     */
+    public static Object buildDummyMoveResult(Class<?> resultClass, Object positionAndMove) {
+        try {
+            java.lang.reflect.Constructor<?> pairCtor = AppTypes.primaryCtor(resultClass);
+            if (pairCtor == null || pairCtor.getParameterTypes().length == 0) return null;
+            Class<?> moveInfoClass = pairCtor.getParameterTypes()[0];
+            java.lang.reflect.Constructor<?> infoCtor = AppTypes.primaryCtor(moveInfoClass);
+            if (infoCtor == null) return null;
+
+            Class<?> historyClass = Class.forName("com.chess.chessboard.history.i");
+            Class<?> classificationClass = Class.forName("com.chess.compengine.AnalysisMoveClassification");
+            Class<?> scoreClass = Class.forName("com.chess.entities.Score");
+            Class<?> colorClass = Class.forName("com.chess.entities.Color");
+
+            Object position = historyClass.getMethod("e").invoke(positionAndMove);
+            Object side = position.getClass().getMethod("getSideToMove").invoke(position);
+            Object companion = scoreClass.getField("Companion").get(null);
+            Object score = companion.getClass()
+                    .getMethod("from", float.class, Integer.class, colorClass)
+                    .invoke(companion, 0f, null, side);
+            Object book = null;
+            for (Object c : classificationClass.getEnumConstants()) {
+                if ("BOOK".equals(((Enum<?>) c).name())) { book = c; break; }
+            }
+
+            Class<?>[] p = infoCtor.getParameterTypes();
+            Object[] args = new Object[p.length];
+            boolean historyUsed = false;
+            for (int i = 0; i < p.length; i++) {
+                if (p[i] == historyClass && !historyUsed) { args[i] = positionAndMove; historyUsed = true; }
+                else if (p[i] == classificationClass) args[i] = book;
+                else if (p[i] == scoreClass) args[i] = score;
+                else args[i] = AppTypes.defaultFor(p[i]);
+            }
+            Object info = infoCtor.newInstance(args);
+
+            Object[] pairArgs = new Object[pairCtor.getParameterTypes().length];
+            pairArgs[0] = info;
+            for (int i = 1; i < pairArgs.length; i++) pairArgs[i] = AppTypes.defaultFor(pairCtor.getParameterTypes()[i]);
+            return pairCtor.newInstance(pairArgs);
+        } catch (Throwable t) {
+            Log.e(TAG, "buildDummyMoveResult failed", t);
+            return null;
+        }
+    }
+}
+for this ply
      */
     public static Object buildDummyMoveResult(Class<?> resultClass, Object positionAndMove) {
         try {
