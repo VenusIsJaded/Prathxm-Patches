@@ -222,6 +222,38 @@ public class Harness {
         Class<?> palette = Class.forName("com.chess.palette.compose.component.ChessTitle");
         check("palette ChessTitle enum", palette.isEnum() && palette.getEnumConstants().length > 0, palette.getEnumConstants().length);
 
+        // ── 10. "Arrows only on my turn": user side from the board's Side enum ──────────────
+        Class<?> sideCls = Class.forName("com.chess.chessboard.vm.movesinput.Side");
+        for (Object sd : sideCls.getEnumConstants()) {
+            String n = ((Enum<?>) sd).name();
+            Boolean w = StockfishExtension.sideToWhite(sd);
+            Boolean expected = "WHITE".equals(n) ? Boolean.TRUE : "BLACK".equals(n) ? Boolean.FALSE : null;
+            check("Side." + n + " -> " + expected, java.util.Objects.equals(w, expected), w);
+        }
+        // Real CBViewModelStateImpl whose sideToPlaySelfEffects returns Side.BLACK.
+        Object sideBlack = Enum.valueOf((Class<Enum>) sideCls, "BLACK");
+        Class<?> fn0 = Class.forName("kotlin.jvm.functions.Function0");
+        Object sideFn = java.lang.reflect.Proxy.newProxyInstance(fn0.getClassLoader(), new Class<?>[]{fn0},
+                (p, m, a) -> "invoke".equals(m.getName()) ? sideBlack : null);
+        Object stateObj = null;
+        for (Constructor<?> k : state.getConstructors()) {
+            Class<?>[] kp = k.getParameterTypes();
+            if (kp.length == 4 && kp[2] == fn0) {
+                Object registry = kp[3].getConstructor().newInstance();
+                stateObj = k.newInstance(start, false, sideFn, registry);
+            }
+        }
+        check("CBViewModelStateImpl instance", stateObj != null, null);
+        check("isUserWhite(state playing BLACK) == false", Boolean.FALSE.equals(StockfishExtension.isUserWhite(stateObj)),
+                stateObj != null ? StockfishExtension.isUserWhite(stateObj) : null);
+
+        // ── 11. Game Review through the app's REAL coroutine / Flow machinery ───────────────
+        // The Game Review flow is wrapped in kotlinx flow{} (SafeCollector) and collected by
+        // runBlocking on another thread, exactly like the app. Before the fix this reproduced the
+        // blank review: the flow never completed (or failed "Flow invariant is violated").
+        check("FlowBridge COROUTINE_SUSPENDED", "COROUTINE_SUSPENDED".equals(String.valueOf(FlowBridge.suspended())), FlowBridge.suspended());
+        FlowHarness.run(t, flow, completed, standard, Harness::check);
+
         System.out.println(fails == 0 ? "ALL CHECKS PASSED" : (fails + " CHECK(S) FAILED"));
         System.exit(fails == 0 ? 0 : 1);
     }
