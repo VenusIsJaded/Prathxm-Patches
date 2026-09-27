@@ -206,7 +206,7 @@ public class CrashActivity extends Activity {
             // Open the structured bug report template. Only pre-fill the title —
             // the full log stays on the clipboard for the user to paste into
             // the "Error logs" field in the form.
-            String githubUrl = "https://github.com/PrathxmOp/Prathxm-Patches/issues/new";
+            String githubUrl = "https://github.com/VenusIsJaded/Prathxm-Patches/issues/new";
             String titleParam = "[Crash Report] " + finalAppVersion + " Unexpected Crash";
 
             try {
