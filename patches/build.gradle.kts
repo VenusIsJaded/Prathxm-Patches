@@ -83,7 +83,7 @@ dependencies {
 
 tasks {
     register<JavaExec>("generatePatchesList") {
-        description = "Chess.com patches: offline Stockfish 19 analysis & game review, ad-free, all bots unlocked, offline Lichess puzzles"
+        description = "Build patch with patch list"
 
         dependsOn(build)
 
