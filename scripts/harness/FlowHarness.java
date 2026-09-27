@@ -115,11 +115,16 @@ final class FlowHarness {
             Class<?>[] p = m.getParameterTypes();
             if (java.lang.reflect.Modifier.isStatic(m.getModifiers()) && p.length == 1 && p[0] == f2
                     && m.getReturnType() == flowCls) {
-                // flow{} returns SafeFlow; channelFlow/callbackFlow return ChannelFlowBuilder.
+                // flow{} returns SafeFlow (an AbstractFlow); channelFlow/callbackFlow return a
+                // ChannelFlow subclass. Pick the one whose result has no ChannelFlow ancestor.
                 Object probe = null;
                 try { m.setAccessible(true); probe = m.invoke(null, (Object) null); } catch (Throwable ignored) {}
-                if (probe == null || probe.getClass().getName().startsWith("kotlinx.coroutines.flow.l")
-                        || probe.getClass().getSimpleName().equals("SafeFlow") || !probe.getClass().getName().contains("Channel")) {
+                if (probe == null) continue;
+                boolean channel = false;
+                for (Class<?> k = probe.getClass(); k != null; k = k.getSuperclass()) {
+                    if (k.getName().contains("Channel")) channel = true;
+                }
+                if (!channel) {
                     flowBuilder = m;
                     break;
                 }
