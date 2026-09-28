@@ -191,6 +191,20 @@ public class LocalAnalysisFlow {
                 }
             }
 
+            // Opening book: which leading plies are theory, and the name of the opening.
+            List<String> bookLine = new ArrayList<>(Math.min(totalMoves, 40));
+            for (int i = 0; i < totalMoves && i < 40; i++) {
+                if (playedLans[i] == null || playedLans[i].length() < 4) break;
+                bookLine.add(BoardUtil.normalizeCastling(boards[i], playedLans[i]));
+            }
+            OpeningBook.Match opening = null;
+            try {
+                opening = OpeningBook.lookup(startingFen, bookLine);
+            } catch (Throwable t) {
+                Log.e(TAG, "Opening book lookup failed", t);
+            }
+            final int bookPlies = opening != null ? opening.bookPlies : 0;
+
             // Run Stockfish on every position (start + after each move) with the full move
             // history, so repetitions and the 50-move rule are seen by the engine.
             StockfishBridge.newGame();
@@ -334,6 +348,11 @@ public class LocalAnalysisFlow {
 
                 String classification = ReviewMath.classify(isBest, forced, loss, winBefore, winAfter,
                         secondGap, sacrifice, recapture, prevLoss, missedMate);
+                // Known theory is "Book" (as in Chess.com's own review), unless the engine sees a
+                // clear mistake (a dubious gambit line is still shown for what it costs).
+                if (i < bookPlies && ReviewMath.isBookEligible(classification)) {
+                    classification = ReviewMath.BOOK;
+                }
                 prevLoss = loss;
 
                 int tIdx = tallyIndex(classification);
@@ -456,6 +475,21 @@ public class LocalAnalysisFlow {
             Constructor<?> themesConstructor = themesClass.getConstructor(twClass);
             Object themes = themesConstructor.newInstance(themesWeights);
 
+            // Opening name shown in the review (AnalyzedGameData.openingInfo). The url is only
+            // used for an optional online opening-stats request that the app wraps in
+            // runCatching, so an empty url is safe offline.
+            Class<?> openingClass = types.agd("$OpeningInfo");
+            Object openingInfo = null;
+            if (opening != null) {
+                try {
+                    float openingScore = results[Math.min(bookPlies, totalMoves)].score;
+                    openingInfo = openingClass.getConstructor(String.class, String.class, float.class)
+                            .newInstance(opening.name, "", openingScore);
+                } catch (Throwable t) {
+                    Log.e(TAG, "Could not build OpeningInfo", t);
+                }
+            }
+
             // Build the final AnalyzedGameData
             Class<?> agdClass = types.agd("");
 
@@ -483,6 +517,7 @@ public class LocalAnalysisFlow {
                 else if (t == List.class) agdArgs[k] = positions;
                 else if (t == themesClass) agdArgs[k] = themes;
                 else if (t == rcClass) agdArgs[k] = reportCard;
+                else if (t == openingClass) agdArgs[k] = openingInfo;
                 else agdArgs[k] = AppTypes.defaultFor(t);             // openingInfo, cee, gameResult, ...
             }
             Object gameData = agdConstructor.newInstance(agdArgs);

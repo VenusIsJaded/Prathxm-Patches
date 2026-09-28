@@ -138,6 +138,14 @@ public final class ReviewMath {
         return BLUNDER;
     }
 
+    /**
+     * Whether a move inside known opening theory may be shown as "Book". Mistakes, blunders
+     * and misses keep their engine rating (some named lines are simply bad).
+     */
+    public static boolean isBookEligible(String c) {
+        return !(MISTAKE.equals(c) || BLUNDER.equals(c) || MISS.equals(c) || FORCED.equals(c));
+    }
+
     public static boolean isKeyMoment(String c) {
         return BRILLIANT.equals(c) || GREAT.equals(c) || BLUNDER.equals(c) || MISTAKE.equals(c)
                 || INACCURACY.equals(c) || MISS.equals(c);

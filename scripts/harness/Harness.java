@@ -284,6 +284,41 @@ public class Harness {
                 && "d18 \u00B7 -M2".equals(OverlayManager.formatEngineInfo(18, -97f, true, -2)),
                 OverlayManager.formatEngineInfo(22, 0.35f, false, 0));
 
+        // ── 10f. Offline opening book: name + Book moves in the local review ─────────────
+        check("opening book loaded", OpeningBook.size() > 3000, OpeningBook.size());
+        OpeningBook.Match ruy = OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6", "e1g1", "h7h6", "h2h4"));
+        check("book: Ruy Lopez line named", ruy != null && ruy.name.startsWith("Ruy Lopez") && ruy.eco.startsWith("C"),
+                ruy != null ? ruy.eco + " " + ruy.name + " /" + ruy.bookPlies : null);
+        check("book: theory plies counted (castling as e1g1)", ruy != null && ruy.bookPlies >= 9 && ruy.bookPlies < 11, ruy != null ? ruy.bookPlies : null);
+        check("book: non-standard start never matches",
+                OpeningBook.lookup("8/8/8/8/8/8/8/K6k w - - 0 1", Arrays.asList("e2e4")) == null, null);
+        check("book: random first move has no name", OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("h2h4", "h7h5", "a2a4", "a7a5", "h1h3", "h8h6", "h3a3")) == null
+                || OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("h2h4", "h7h5", "a2a4", "a7a5", "h1h3", "h8h6", "h3a3")).bookPlies < 7, null);
+        Class<?> openingCls = t.agd("$OpeningInfo");
+        Object oi = openingCls.getConstructor(String.class, String.class, float.class).newInstance("Ruy Lopez", "", 0.3f);
+        check("OpeningInfo instance", String.valueOf(oi).contains("name=Ruy Lopez"), oi);
+        check("AnalyzedGameData takes an OpeningInfo", Arrays.asList(at).contains(openingCls), null);
+        Class<?> amc = Class.forName("com.chess.compengine.AnalysisMoveClassification");
+        // The review maps AnalyzedPosition.classification with com.chess.compengine.a.a(Companion, String)
+        // (f1.H in 4.10.17); every classification string the extension emits must resolve.
+        Class<?> amcCompanion = Class.forName("com.chess.compengine.AnalysisMoveClassification$a");
+        Method fromString = Class.forName("com.chess.compengine.a").getMethod("a", amcCompanion, String.class);
+        Object companion = amc.getField("a").get(null);
+        boolean bookMapped = "BOOK".equals(String.valueOf(fromString.invoke(null, companion, ReviewMath.BOOK)));
+        List<String> unmapped = new ArrayList<>();
+        for (String c : new String[]{ReviewMath.BOOK, ReviewMath.BRILLIANT, ReviewMath.GREAT, ReviewMath.BEST,
+                ReviewMath.EXCELLENT, ReviewMath.GOOD, ReviewMath.INACCURACY, ReviewMath.MISTAKE,
+                ReviewMath.BLUNDER, ReviewMath.MISS, ReviewMath.FORCED}) {
+            if (fromString.invoke(null, companion, c) == null) unmapped.add(c);
+        }
+        check("every review classification string maps to the app enum", unmapped.isEmpty(), unmapped);
+        check("\"book\" string maps to AnalysisMoveClassification.BOOK", bookMapped, null);
+        check("book only replaces non-errors", ReviewMath.isBookEligible(ReviewMath.EXCELLENT)
+                && !ReviewMath.isBookEligible(ReviewMath.BLUNDER) && !ReviewMath.isBookEligible(ReviewMath.MISTAKE), null);
+
         // ── 11. Game Review through the app's REAL coroutine / Flow machinery ───────────────
         // The Game Review flow is wrapped in kotlinx flow{} (SafeCollector) and collected by
         // runBlocking on another thread, exactly like the app. Before the fix this reproduced the
