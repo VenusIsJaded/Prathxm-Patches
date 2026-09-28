@@ -218,6 +218,28 @@ public class Harness {
         Object sub = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.submitDailyPuzzleAction(123L, null, null);
         check("SubmitDailyPuzzleActionResponse built", sub != null && sub.getClass().getName().endsWith("SubmitDailyPuzzleActionResponse"), sub);
 
+        // Lichess sends UCI solutions; the app's PGN parser rejects bare UCI, so the movetext
+        // is converted first. Every case must parse and reach the expected final position.
+        Method uciToPgn = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.class
+                .getDeclaredMethod("uciToPgnMovetext", String.class, List.class);
+        uciToPgn.setAccessible(true);
+        String[][] puzzleCases = {
+                {"1r4k1/6pp/p7/5r2/2pQ4/q4P2/P1P4P/K2R2R1 b - - 1 1", "a3a2 a1a2 f5a5", "1r4k1/6pp/p7/r7/2pQ4/5P2/K1P4P/3R2R1 w"},
+                {"r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R w KQkq - 0 10", "e1c1 e8g8 d2d7", "r4rk1/pppQ1ppp/8/8/8/8/PPP2PPP/2KR3R b"},
+                {"8/P6k/8/8/8/8/6pK/8 w - - 0 50", "a7a8q g2g1n h2g1", "Q7/7k/8/8/8/8/8/6K1 b"},
+                {"rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3", "e5f6 g8f6", "rnbqkb1r/ppp1p1pp/5n2/3p4/8/8/PPPP1PPP/RNBQKBNR w"}};
+        for (String[] pc : puzzleCases) {
+            String mt = (String) uciToPgn.invoke(null, pc[0], Arrays.asList(pc[1].split(" ")));
+            String end = null;
+            try {
+                Object pg = parse.invoke(null, "[FEN \"" + pc[0] + "\"]\n[SetUp \"1\"]\n\n" + mt + " *", true, true, fenTypeC);
+                List<?> pMoves = (List<?>) pg.getClass().getMethod("b").invoke(pg);
+                Object lastMv = pMoves.get(pMoves.size() - 1);
+                end = StockfishExtension.extractFen(lastMv.getClass().getMethod("b").invoke(lastMv));
+            } catch (Throwable e) { end = "parse error: " + e.getCause(); }
+            check("Lichess UCI solution parses (" + pc[1] + ")", end != null && end.startsWith(pc[2]), mt + " -> " + end);
+        }
+
         // ── 9. Custom titles ──────────────────────────────────────────────────────────
         Class<?> palette = Class.forName("com.chess.palette.compose.component.ChessTitle");
         check("palette ChessTitle enum", palette.isEnum() && palette.getEnumConstants().length > 0, palette.getEnumConstants().length);
@@ -283,6 +305,69 @@ public class Harness {
         check("engine info label", "d22 \u00B7 +0.35".equals(OverlayManager.formatEngineInfo(22, 0.35f, false, 0))
                 && "d18 \u00B7 -M2".equals(OverlayManager.formatEngineInfo(18, -97f, true, -2)),
                 OverlayManager.formatEngineInfo(22, 0.35f, false, 0));
+
+        // ── 10f. Offline opening book: name + Book moves in the local review ─────────────
+        check("opening book loaded", OpeningBook.size() > 3000, OpeningBook.size());
+        OpeningBook.Match ruy = OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("e2e4", "e7e5", "g1f3", "b8c6", "f1b5", "a7a6", "b5a4", "g8f6", "e1g1", "h7h6", "h2h4"));
+        check("book: Ruy Lopez line named", ruy != null && ruy.name.startsWith("Ruy Lopez") && ruy.eco.startsWith("C"),
+                ruy != null ? ruy.eco + " " + ruy.name + " /" + ruy.bookPlies : null);
+        check("book: theory plies counted (castling as e1g1)", ruy != null && ruy.bookPlies >= 9 && ruy.bookPlies < 11, ruy != null ? ruy.bookPlies : null);
+        check("book: non-standard start never matches",
+                OpeningBook.lookup("8/8/8/8/8/8/8/K6k w - - 0 1", Arrays.asList("e2e4")) == null, null);
+        check("book: random first move has no name", OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("h2h4", "h7h5", "a2a4", "a7a5", "h1h3", "h8h6", "h3a3")) == null
+                || OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1",
+                Arrays.asList("h2h4", "h7h5", "a2a4", "a7a5", "h1h3", "h8h6", "h3a3")).bookPlies < 7, null);
+        Class<?> openingCls = t.agd("$OpeningInfo");
+        Object oi = openingCls.getConstructor(String.class, String.class, float.class).newInstance("Ruy Lopez", "", 0.3f);
+        check("OpeningInfo instance", String.valueOf(oi).contains("name=Ruy Lopez"), oi);
+        check("AnalyzedGameData takes an OpeningInfo", Arrays.asList(at).contains(openingCls), null);
+        Class<?> amc = Class.forName("com.chess.compengine.AnalysisMoveClassification");
+        // The review maps AnalyzedPosition.classification with com.chess.compengine.a.a(Companion, String)
+        // (f1.H in 4.10.17); every classification string the extension emits must resolve.
+        Class<?> amcCompanion = Class.forName("com.chess.compengine.AnalysisMoveClassification$a");
+        Method fromString = Class.forName("com.chess.compengine.a").getMethod("a", amcCompanion, String.class);
+        Object companion = amc.getField("a").get(null);
+        boolean bookMapped = "BOOK".equals(String.valueOf(fromString.invoke(null, companion, ReviewMath.BOOK)));
+        List<String> unmapped = new ArrayList<>();
+        for (String c : new String[]{ReviewMath.BOOK, ReviewMath.BRILLIANT, ReviewMath.GREAT, ReviewMath.BEST,
+                ReviewMath.EXCELLENT, ReviewMath.GOOD, ReviewMath.INACCURACY, ReviewMath.MISTAKE,
+                ReviewMath.BLUNDER, ReviewMath.MISS, ReviewMath.FORCED}) {
+            if (fromString.invoke(null, companion, c) == null) unmapped.add(c);
+        }
+        check("every review classification string maps to the app enum", unmapped.isEmpty(), unmapped);
+        check("\"book\" string maps to AnalysisMoveClassification.BOOK", bookMapped, null);
+        // Report card: f1.f maps CategoryRating.category via f1.W and parses performance as a
+        // classification. Every category we emit must map, and every performance must parse.
+        Method catW = Class.forName("com.chess.gamereview.v2.f1").getDeclaredMethod("W", String.class);
+        catW.setAccessible(true);
+        List<String> badCats = new ArrayList<>();
+        for (String c : new String[]{"Opening", "Middlegame", "Endgame", "Tactics"}) if (catW.invoke(null, c) == null) badCats.add(c);
+        check("report-card categories map to ReportCardCategory", badCats.isEmpty(), badCats);
+        List<String> badPerf = new ArrayList<>();
+        for (int pct = 0; pct <= 100; pct += 5) {
+            String perf = ReviewMath.performance(pct);
+            if (fromString.invoke(null, companion, perf) == null) badPerf.add(pct + "=" + perf);
+        }
+        check("report-card performance parses as a classification", badPerf.isEmpty(), badPerf);
+        String sum = ReviewMath.summary(91.24f, 78.4f, new int[11], new int[]{0,0,0,0,0,0,0,0,2,0,1}, "Ruy Lopez");
+        check("report-card summary", sum.startsWith("Ruy Lopez") && sum.contains("91.2%") && sum.contains("0\u20133"), sum);
+        // Live move toasts: FEN-key history after 1.e4 e5 2.Nf3 Nc6 3.Bb5 (from board placements)
+        List<String> keys = Arrays.asList(
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+                "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b",
+                "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w",
+                "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b",
+                "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w",
+                "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b");
+        OpeningBook.Match live = MoveClassifier.bookMatch(keys);
+        check("live toast: 3.Bb5 is Book (Ruy Lopez)", live != null && live.name.startsWith("Ruy Lopez"), live != null ? live.name : null);
+        List<String> offBook = new ArrayList<>(keys);
+        offBook.set(5, "r1bqkbnr/pppp1ppp/2n5/4p3/4P2P/5N2/PPPP1PP1/RNBQKB1R b");
+        check("live toast: 3.h4 is not Book", MoveClassifier.bookMatch(offBook) == null, null);
+        check("book only replaces non-errors", ReviewMath.isBookEligible(ReviewMath.EXCELLENT)
+                && !ReviewMath.isBookEligible(ReviewMath.BLUNDER) && !ReviewMath.isBookEligible(ReviewMath.MISTAKE), null);
 
         // ── 11. Game Review through the app's REAL coroutine / Flow machinery ───────────────
         // The Game Review flow is wrapped in kotlinx flow{} (SafeCollector) and collected by

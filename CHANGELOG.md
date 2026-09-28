@@ -1,3 +1,25 @@
+## [1.19.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/8) (2026-09-28)
+
+### ✨ Features
+
+* **Chess.com:** Game Review **names the opening** and marks theory moves as **Book**, from an offline book of 3,815 lines (Lichess chess-openings, CC0); a line the engine rates as a Mistake, Blunder or Miss keeps that rating
+* **Chess.com:** **meaningful report card**: Opening, Middlegame and Endgame ratings come from each phase's real accuracy, Tactics from brilliant / great finds versus blunders and misses, and the summary names the opening and both accuracies
+* **Chess.com:** move toasts show **📖 Book: opening name** for theory moves
+
+### 🐛 Bug Fixes
+
+* **Chess.com:** the **Lichess daily puzzle** is the real puzzle of the day; the UCI solution was pasted into the PGN as-is, the app's parser rejected it, and the fallback stub was shown every day
+* **Chess.com:** puzzle **correct / wrong / solved sounds** play; their asset paths did not exist in 4.10.17, and a wrong move matched the "correct" sound
+* **Chess.com:** report-card performance values are real classification names; the old words (Great / Fair / Poor) were ignored by the app
+* **Chess.com:** the crash screen appears for very long stack traces (they exceeded the Binder limit, so the crash screen could not start)
+* **Chess.com:** custom titles are cached for offline use and matched with `Locale.ROOT` (Turkish-locale phones broke names containing an I)
+
+### 🔧 Improvements
+
+* **Chess.com:** the puzzle's reply move uses Chess.com's opponent-move sound
+* **Chess.com:** the Application context and the settings are cached instead of being looked up several times per move
+* **Build:** new `scripts/generate_opening_book.py`; the verification harness checks the opening book, the Lichess puzzle conversion against the real PGN parser, and that every classification, report-card category and performance value maps to the app's own enums
+
 ## [1.18.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/6) (2026-09-28)
 
 ### ✨ Features
