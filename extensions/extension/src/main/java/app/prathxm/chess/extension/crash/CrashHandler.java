@@ -23,6 +23,9 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
     // if a crash occurs inside the :crash process itself (e.g. Firebase init failure).
     private static volatile boolean sHandlingCrash = false;
 
+    /** Keeps the crash log well below the Binder transaction limit. */
+    private static final int MAX_LOG_CHARS = 100_000;
+
     private CrashHandler(Context ctx) {
         this.context = ctx.getApplicationContext();
         this.defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
@@ -87,6 +90,12 @@ public class CrashHandler implements Thread.UncaughtExceptionHandler {
             PrintWriter pw = new PrintWriter(sw);
             throwable.printStackTrace(pw);
             String stackTrace = sw.toString();
+            // Intent extras travel through a ~1 MB Binder buffer; a huge trace (e.g. a
+            // StackOverflowError) made startActivity fail, so the crash screen never showed.
+            if (stackTrace.length() > MAX_LOG_CHARS) {
+                stackTrace = stackTrace.substring(0, MAX_LOG_CHARS)
+                        + "\n... (" + (stackTrace.length() - MAX_LOG_CHARS) + " more characters truncated)";
+            }
 
             Intent intent = new Intent(context, CrashActivity.class);
             intent.putExtra("error_log", stackTrace);

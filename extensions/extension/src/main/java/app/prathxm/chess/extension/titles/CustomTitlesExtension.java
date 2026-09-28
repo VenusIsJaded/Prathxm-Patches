@@ -24,10 +24,20 @@ public class CustomTitlesExtension {
         new Thread(new Runnable() {
             @Override
             public void run() {
+                // Show the last downloaded titles right away (and when offline).
+                String cached = readCache();
+                if (cached != null) {
+                    try {
+                        applyJson(cached);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Cached titles unreadable: " + e.getMessage());
+                    }
+                }
                 try {
                     URL url = new URL(JSON_URL);
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setConnectTimeout(5000);
+                    conn.setReadTimeout(10000);
                     conn.setRequestMethod("GET");
                     if (conn.getResponseCode() == 200) {
                         BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -37,21 +47,9 @@ public class CustomTitlesExtension {
                             sb.append(line);
                         }
                         reader.close();
-                        
-                        JSONObject json = new JSONObject(sb.toString());
-                        JSONObject titlesJson = json.has("titles") ? json.getJSONObject("titles") : json;
-                        
-                        synchronized (titleOverrides) {
-                            titleOverrides.clear();
-                            Iterator<String> keys = titlesJson.keys();
-                            while (keys.hasNext()) {
-                                String key = keys.next();
-                                String value = titlesJson.getString(key);
-                                if (value != null && !value.isEmpty()) {
-                                    titleOverrides.put(key.toLowerCase().trim(), value.toUpperCase().trim());
-                                }
-                            }
-                        }
+
+                        applyJson(sb.toString());
+                        writeCache(sb.toString());
                         Log.i(TAG, "Loaded " + titleOverrides.size() + " custom titles.");
                     }
                     conn.disconnect();
@@ -62,12 +60,60 @@ public class CustomTitlesExtension {
         }).start();
     }
 
+    private static final String CACHE_PREFS = "prathxm_custom_titles";
+    private static final String CACHE_KEY = "json";
+
+    private static void applyJson(String text) throws Exception {
+        JSONObject json = new JSONObject(text);
+        JSONObject titlesJson = json.has("titles") ? json.getJSONObject("titles") : json;
+        Map<String, String> fresh = new HashMap<>();
+        Iterator<String> keys = titlesJson.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            String value = titlesJson.optString(key, null);
+            if (value != null && !value.isEmpty()) {
+                fresh.put(key.toLowerCase(java.util.Locale.ROOT).trim(), value.toUpperCase(java.util.Locale.ROOT).trim());
+            }
+        }
+        synchronized (titleOverrides) {
+            titleOverrides.clear();
+            titleOverrides.putAll(fresh);
+        }
+    }
+
+    private static android.content.SharedPreferences cachePrefs() {
+        // Plain ActivityThread lookup: StockfishExtension.getContext() would also start the
+        // engine, which must not happen when only this patch is enabled.
+        android.content.Context ctx = null;
+        try {
+            ctx = (android.content.Context) Class.forName("android.app.ActivityThread")
+                    .getMethod("currentApplication").invoke(null);
+        } catch (Throwable ignored) {}
+        return ctx != null ? ctx.getSharedPreferences(CACHE_PREFS, android.content.Context.MODE_PRIVATE) : null;
+    }
+
+    private static String readCache() {
+        try {
+            android.content.SharedPreferences p = cachePrefs();
+            return p != null ? p.getString(CACHE_KEY, null) : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private static void writeCache(String text) {
+        try {
+            android.content.SharedPreferences p = cachePrefs();
+            if (p != null) p.edit().putString(CACHE_KEY, text).apply();
+        } catch (Throwable ignored) {}
+    }
+
     public static String getOverride(String username, String defaultTitle) {
         if (username == null) {
             return defaultTitle;
         }
         synchronized (titleOverrides) {
-            String override = titleOverrides.get(username.toLowerCase().trim());
+            String override = titleOverrides.get(username.toLowerCase(java.util.Locale.ROOT).trim());
             return override != null ? override : defaultTitle;
         }
     }
@@ -77,7 +123,7 @@ public class CustomTitlesExtension {
             return null;
         }
         synchronized (titleOverrides) {
-            return titleOverrides.get(username.toLowerCase().trim());
+            return titleOverrides.get(username.toLowerCase(java.util.Locale.ROOT).trim());
         }
     }
 

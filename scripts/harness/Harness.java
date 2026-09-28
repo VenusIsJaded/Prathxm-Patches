@@ -346,13 +346,26 @@ public class Harness {
         for (String c : new String[]{"Opening", "Middlegame", "Endgame", "Tactics"}) if (catW.invoke(null, c) == null) badCats.add(c);
         check("report-card categories map to ReportCardCategory", badCats.isEmpty(), badCats);
         List<String> badPerf = new ArrayList<>();
-        for (int acc = 0; acc <= 100; acc += 5) {
-            String perf = ReviewMath.performance(acc);
-            if (fromString.invoke(null, companion, perf) == null) badPerf.add(acc + "=" + perf);
+        for (int pct = 0; pct <= 100; pct += 5) {
+            String perf = ReviewMath.performance(pct);
+            if (fromString.invoke(null, companion, perf) == null) badPerf.add(pct + "=" + perf);
         }
         check("report-card performance parses as a classification", badPerf.isEmpty(), badPerf);
         String sum = ReviewMath.summary(91.24f, 78.4f, new int[11], new int[]{0,0,0,0,0,0,0,0,2,0,1}, "Ruy Lopez");
         check("report-card summary", sum.startsWith("Ruy Lopez") && sum.contains("91.2%") && sum.contains("0\u20133"), sum);
+        // Live move toasts: FEN-key history after 1.e4 e5 2.Nf3 Nc6 3.Bb5 (from board placements)
+        List<String> keys = Arrays.asList(
+                "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w",
+                "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b",
+                "rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPP1PPP/RNBQKBNR w",
+                "rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R b",
+                "r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w",
+                "r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R b");
+        OpeningBook.Match live = MoveClassifier.bookMatch(keys);
+        check("live toast: 3.Bb5 is Book (Ruy Lopez)", live != null && live.name.startsWith("Ruy Lopez"), live != null ? live.name : null);
+        List<String> offBook = new ArrayList<>(keys);
+        offBook.set(5, "r1bqkbnr/pppp1ppp/2n5/4p3/4P2P/5N2/PPPP1PP1/RNBQKB1R b");
+        check("live toast: 3.h4 is not Book", MoveClassifier.bookMatch(offBook) == null, null);
         check("book only replaces non-errors", ReviewMath.isBookEligible(ReviewMath.EXCELLENT)
                 && !ReviewMath.isBookEligible(ReviewMath.BLUNDER) && !ReviewMath.isBookEligible(ReviewMath.MISTAKE), null);
 

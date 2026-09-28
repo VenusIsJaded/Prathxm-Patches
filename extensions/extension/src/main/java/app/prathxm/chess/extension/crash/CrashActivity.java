@@ -64,6 +64,7 @@ public class CrashActivity extends Activity {
                 "Patch Version: " + patchVersion + "\n" +
                 "Device: " + deviceModel + "\n" +
                 "Android Version: " + androidVersion + " (SDK " + sdkVersion + ")\n" +
+                "ABI: " + (Build.SUPPORTED_ABIS.length > 0 ? Build.SUPPORTED_ABIS[0] : "?") + "\n" +
                 "---------------------\n\n" +
                 errorLog;
 

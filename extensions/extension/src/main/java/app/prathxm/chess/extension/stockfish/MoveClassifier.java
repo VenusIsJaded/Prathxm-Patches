@@ -224,6 +224,23 @@ public class MoveClassifier {
         return null;
     }
 
+    /**
+     * Book match if every move from the standard start up to the last position of
+     * {@code keys} is known theory (keys are "placement side" FEN keys of consecutive plies).
+     */
+    static OpeningBook.Match bookMatch(List<String> keys) {
+        if (keys == null || keys.size() < 2) return null;
+        if (!keys.get(0).equals(OpeningBook.START_PLACEMENT + " w")) return null;
+        List<String> moves = new ArrayList<>(keys.size() - 1);
+        for (int i = 1; i < keys.size(); i++) {
+            String m = deduceUciMove(keys.get(i - 1), keys.get(i));
+            if (m == null) return null;
+            moves.add(m);
+        }
+        OpeningBook.Match match = OpeningBook.lookup(OpeningBook.START_PLACEMENT + " w KQkq - 0 1", moves);
+        return match != null && match.bookPlies == moves.size() ? match : null;
+    }
+
     @android.annotation.SuppressLint("MissingPermission")
     public static void classifyMoveIfPossible(Context context, String currentFen, StockfishProcess.AnalysisResult currentResult) {
         if (context == null) return;
@@ -240,10 +257,12 @@ public class MoveClassifier {
             if (currentKey == null) return;
 
             String prevKey = null;
+            List<String> line = null;
             synchronized (fenHistory) {
                 int idx = fenHistory.indexOf(currentKey);
                 if (idx >= 1) {
                     prevKey = fenHistory.get(idx - 1);
+                    if (idx <= 30) line = new ArrayList<>(fenHistory.subList(0, idx + 1));
                 }
             }
 
@@ -271,10 +290,22 @@ public class MoveClassifier {
             String c = ReviewMath.classify(isBest || deliversMate, false, loss, winBefore, winAfter,
                     -1f, false, false, -1f, false);
 
+            // Opening theory from the standard start: "Book" with the opening name, as in the
+            // review (only if the engine does not see a real error).
+            String openingName = null;
+            if (ReviewMath.isBookEligible(c)) {
+                OpeningBook.Match book = bookMatch(line);
+                if (book != null) {
+                    c = ReviewMath.BOOK;
+                    openingName = book.name;
+                }
+            }
+
             String classification;
             String emoji;
             boolean isBlunderOrMistake = false;
             switch (c) {
+                case ReviewMath.BOOK: classification = "Book"; emoji = "📖"; break;
                 case ReviewMath.BEST: classification = "Best Move"; emoji = "🎯"; break;
                 case ReviewMath.EXCELLENT: classification = "Excellent"; emoji = "✨"; break;
                 case ReviewMath.GOOD: classification = "Good Move"; emoji = "👍"; break;
@@ -285,7 +316,10 @@ public class MoveClassifier {
                 default: classification = "Good Move"; emoji = "👍"; break;
             }
 
-            final String toastText = emoji + " " + classification + (uciMove != null ? " (" + uciMove + ")" : "") + String.format(java.util.Locale.US, " [-%.0f%%]", loss * 100f);
+            final String toastText = openingName != null
+                    ? emoji + " " + classification + ": " + openingName
+                    : emoji + " " + classification + (uciMove != null ? " (" + uciMove + ")" : "")
+                            + String.format(java.util.Locale.US, " [-%.0f%%]", loss * 100f);
             final boolean triggerVibrate = isBlunderOrMistake;
 
             if (activity != null) {
