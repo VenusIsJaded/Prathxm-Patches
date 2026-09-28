@@ -49,7 +49,7 @@ public class CrashActivity extends Activity {
             appVersion = getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
         } catch (Exception ignored) {}
 
-        String patchVersion = "1.9.7"; // Fallback
+        String patchVersion = "unknown";
         try {
             Class<?> buildConfigClass = Class.forName("app.prathxm.chess.extension.BuildConfig");
             patchVersion = (String) buildConfigClass.getField("PATCH_VERSION").get(null);
