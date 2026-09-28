@@ -744,28 +744,67 @@ public class StockfishExtension {
         return false;
     }
 
+    /**
+     * Screens where a game against another human is in progress (or being watched live) in
+     * Chess.com 4.10.17. Engine overlays are never shown on these (fair play).
+     */
+    private static final java.util.Set<String> ONLINE_GAME_ACTIVITIES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.chess.realchess.ui.game.RealGameActivity",                  // live game
+            "com.chess.realchess.ui.wait.WaitGameActivity",                  // live seek
+            "com.chess.realchess.ui.wait.LiveGameSeekV6Activity",            // live seek
+            "com.chess.features.daily.DailyGameActivity",                    // daily (correspondence) game
+            "com.chess.waitgame.daily.DailyGameSeekActivity",                // daily seek
+            "com.chess.features.connectedboards.ConnectedBoardGameActivity", // online game on an e-board
+            "com.chess.features.puzzles.battle.PuzzlesBattleGameActivity",   // puzzle battle vs a human
+            "com.chess.chesstv.ChessTvActivity",                             // watching live games
+            "com.chess.features.more.watch.WatchActivity"                    // watching live games
+    ));
+
+    /** Screens that host a board but never an online game (bots, coach, analysis, archives...). */
+    private static final java.util.Set<String> OFFLINE_BOARD_ACTIVITIES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.chess.features.versusbots.game.BotGameActivityV2",
+            "com.chess.features.versusbots.archive.ArchivedBotGameActivityV2",
+            "com.chess.features.guidedcoachgame.GuidedCoachGameActivity",
+            "com.chess.features.train.TrainGameActivity",
+            "com.chess.practice.play.PracticePlayGameActivity",
+            "com.chess.endgames.practice.EndgamePracticeGameActivity",
+            "com.chess.endgames.challenge.EndgameChallengeGameActivity",
+            "com.chess.passandplay.PassAndPlayActivity",
+            "com.chess.features.live.archive.ArchivedLiveGameActivity",      // finished live games
+            "com.chess.diagrams.game.DiagramGameActivity",
+            "com.chess.features.explorer.GameExplorerActivity",
+            "com.chess.gamereview.v2.GameReviewActivity",
+            "com.chess.features.analysis.standalone.StandaloneAnalysisActivity",
+            "com.chess.features.analysis.standalonev2.StandaloneAnalysisActivityV2",
+            "com.chess.features.analysis.selfengineless.AnalysisSelfEnginelessActivity"
+    ));
+
+    /**
+     * Fair-play gate: true if {@code activity} is an online game against a human (or a live
+     * game being watched), where engine overlays must stay off.
+     *
+     * <p>Exact 4.10.17 class names are checked first. The old substring heuristic misfired on
+     * real screens: it blocked coach, train, pass-and-play, endgame and finished-game screens
+     * (any name containing "GameActivity"), and let Chess TV / Watch through. For screens in
+     * neither list only online-only packages count as live.
+     */
     public static boolean isLiveMatch(Activity activity) {
         if (isDeveloperMode) return false;
         if (activity == null) return false;
-        String name = activity.getClass().getName();
-        String lower = name.toLowerCase();
-        
-        if (lower.contains("computer") || lower.contains("bot") || lower.contains("practice") ||
-            lower.contains("analysis") || lower.contains("review") || lower.contains("local") ||
-            lower.contains("solo") || lower.contains("tutorial") || lower.contains("puzzle")) {
-            return false;
-        }
-        
-        if (lower.contains("playactivity") || lower.contains("gameactivity") || lower.contains("live")) {
-            isReviewMode = false;
-            return true;
-        }
-        
-        if (lower.contains(".play.")) {
-            isReviewMode = false;
-            return true;
-        }
-        return false;
+        boolean live = isOnlineGameActivity(activity.getClass().getName());
+        if (live) isReviewMode = false;
+        return live;
+    }
+
+    static boolean isOnlineGameActivity(String name) {
+        if (name == null) return false;
+        if (ONLINE_GAME_ACTIVITIES.contains(name)) return true;
+        if (OFFLINE_BOARD_ACTIVITIES.contains(name)) return false;
+        return name.startsWith("com.chess.realchess.")
+                || name.startsWith("com.chess.features.daily.")
+                || name.startsWith("com.chess.waitgame.")
+                || name.startsWith("com.chess.chesstv.")
+                || name.startsWith("com.chess.features.connectedboards.");
     }
 
     /**
