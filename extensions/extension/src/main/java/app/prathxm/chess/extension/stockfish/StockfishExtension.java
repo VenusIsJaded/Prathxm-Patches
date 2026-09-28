@@ -232,6 +232,7 @@ public class StockfishExtension {
             OverlayManager.hideEvalBar();
             OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
+            OverlayManager.hideEngineInfo();
             return;
         }
 
@@ -462,6 +463,12 @@ public class StockfishExtension {
             OverlayManager.hideWdlBar();
         }
 
+        if (!disableOverlays && StockfishSettings.isEngineInfoEnabled(context)) {
+            OverlayManager.updateEngineInfo(result.depth, result.score, result.hasMate, result.mateIn);
+        } else {
+            OverlayManager.hideEngineInfo();
+        }
+
         if (!isFinal) return;
         if (!disableOverlays && result.hasMate && StockfishSettings.isMateAnnouncementEnabled(context)) {
             OverlayManager.showMateAnnouncement(result.mateIn);
@@ -536,6 +543,7 @@ public class StockfishExtension {
             OverlayManager.hideEvalBar();
             OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
+            OverlayManager.hideEngineInfo();
         } else {
             triggerAnalysisForCurrentState();
         }
