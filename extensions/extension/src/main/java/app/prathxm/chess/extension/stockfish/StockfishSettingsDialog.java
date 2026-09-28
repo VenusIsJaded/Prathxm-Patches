@@ -111,6 +111,7 @@ public class StockfishSettingsDialog {
         CheckBox sideCb = addStyledCheckbox(advancedLayout, "Arrows only on my turn", StockfishSettings.isMySideOnly(activity), density, activity);
         CheckBox threatCb = addStyledCheckbox(advancedLayout, "Threat arrow (opponent's best reply)", StockfishSettings.isThreatArrowsEnabled(activity), density, activity);
         CheckBox wdlCb = addStyledCheckbox(advancedLayout, "Win / Draw / Loss bar", StockfishSettings.isWdlEnabled(activity), density, activity);
+        CheckBox infoCb = addStyledCheckbox(advancedLayout, "Depth & score above the board", StockfishSettings.isEngineInfoEnabled(activity), density, activity);
         CheckBox mateCb = addStyledCheckbox(advancedLayout, "Announce forced mates", StockfishSettings.isMateAnnouncementEnabled(activity), density, activity);
         CheckBox blunderCb = addStyledCheckbox(advancedLayout, "Vibrate on mistakes & blunders", StockfishSettings.isBlunderAlertsEnabled(activity), density, activity);
         addHint(advancedLayout, "Needs \"Rate each move\" to be on.", density, activity);
@@ -172,6 +173,33 @@ public class StockfishSettingsDialog {
                 eloSeekBar.setAlpha(isChecked ? 1f : 0.4f);
             }
         });
+
+        // Reset
+        addDialogSpacer(advancedLayout, 8, density);
+        TextView resetBtn = new TextView(activity);
+        resetBtn.setText("Reset engine settings to defaults");
+        resetBtn.setTextColor(0xFFE15554);
+        resetBtn.setTextSize(13);
+        resetBtn.setGravity(Gravity.CENTER);
+        resetBtn.setPadding(0, (int) (10 * density), 0, (int) (10 * density));
+        resetBtn.setOnClickListener(v -> new android.app.AlertDialog.Builder(activity)
+                .setTitle("Reset engine settings?")
+                .setMessage("Depth, arrows, overlays, threads, review depth and strength go back to their defaults.")
+                .setNegativeButton("Cancel", null)
+                .setPositiveButton("Reset", (d, w) -> {
+                    StockfishSettings.resetToDefaults(activity);
+                    Object st = StockfishExtension.getStateImpl();
+                    ArrowInjector.clearEngineArrows(st);
+                    OverlayManager.hideEvalBar();
+                    OverlayManager.hideWdlBar();
+                    OverlayManager.hideMateAnnouncement();
+                    OverlayManager.hideEngineInfo();
+                    StockfishExtension.triggerAnalysisForCurrentState();
+                    Toast.makeText(activity, "Engine settings reset", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                })
+                .show());
+        advancedLayout.addView(resetBtn);
 
         addDialogSpacer(rootLayout, 16, density);
 
@@ -268,6 +296,7 @@ public class StockfishSettingsDialog {
             StockfishSettings.setArrowsVisible(activity, arrowsCb.isChecked());
             StockfishSettings.setEvalBarEnabled(activity, evalBarCb.isChecked());
             StockfishSettings.setWdlEnabled(activity, wdlCb.isChecked());
+            StockfishSettings.setEngineInfoEnabled(activity, infoCb.isChecked());
             StockfishSettings.setThreatArrowsEnabled(activity, threatCb.isChecked());
             StockfishSettings.setMoveClassificationEnabled(activity, classifCb.isChecked());
             StockfishSettings.setBlunderAlertsEnabled(activity, blunderCb.isChecked());
@@ -284,6 +313,7 @@ public class StockfishSettingsDialog {
             }
             if (!enabledCb.isChecked() || !evalBarCb.isChecked()) OverlayManager.hideEvalBar();
             if (!enabledCb.isChecked() || !wdlCb.isChecked()) OverlayManager.hideWdlBar();
+            if (!enabledCb.isChecked() || !infoCb.isChecked()) OverlayManager.hideEngineInfo();
             if (!enabledCb.isChecked()) OverlayManager.hideMateAnnouncement();
             if (enabledCb.isChecked()) {
                 StockfishExtension.triggerAnalysisForCurrentState();

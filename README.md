@@ -22,14 +22,14 @@ Full game reviews, live analysis for bots and practice, unlimited Play Coach, no
 | :-- | :-- |
 | 🧠 **Stockfish 19 NNUE on your phone** | This is the newest official Stockfish. It uses every CPU core and a hash table sized to your RAM, and it picks the fastest instruction set your phone supports. |
 | 📊 **Accurate Game Review** | Every move is rated with a win-probability model: Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder and Miss. Reviews always run at full strength and use the full move history, so repetitions and the 50-move rule are taken into account. |
-| 🎯 **Live analysis** | Best-move arrows, an evaluation bar, a Win/Draw/Loss bar, threat arrows and mate alerts. These only work in bot, practice and analysis games. |
+| 🎯 **Live analysis** | Best-move arrows, an evaluation bar, a Win/Draw/Loss bar, a depth & score readout, threat arrows and mate alerts. These work in bot, coach, practice and analysis games and on finished games. |
 | 🧩 **Offline Lichess puzzles** | Millions of puzzles on a journey map, with streaks, Puzzle Rush and themed practice. |
 | 🚫 **Ad-free** | Banners, interstitials and video ads are removed. |
 | 🤖 **Every bot unlocked** | All Versus Bots can be played, including the premium ones. |
 | 🧑‍🏫 **Unlimited Play Coach** | Play Coach is no longer limited to one free game per day. |
 
 > [!NOTE]
-> Fair play is built in. Engine arrows, bars and alerts are switched off automatically in live online games.
+> Fair play is built in. Engine arrows, bars and alerts are switched off automatically in online games (live and daily), in puzzle battles and while watching live games.
 
 ---
 
@@ -72,6 +72,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 - **CPU threads** are set to all cores by default. Lower this only if your phone gets hot.
 - **Game Review extra depth** adds depth on top of the Chess.com review preset (Fast, Standard, Deep or Maximum) when you want the most accurate reviews.
 - **Limit engine strength (Elo)** only changes the live arrows. Game reviews always run at full strength.
+- **Reset engine settings to defaults** (at the end of the advanced settings) undoes every change in one tap.
 
 ---
 
@@ -103,10 +104,13 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 
 # Build the .mpp without registry access (compiles patches + extension, bundles Stockfish 19)
 scripts/setup_tools.sh               # one-time: JDK 17, kotlinc, morphe-cli, smali, dex2jar
-scripts/build_mpp_local.sh 1.17.0   # output: out/patches-1.17.0.mpp
+scripts/build_mpp_local.sh 1.18.0   # output: out/patches-1.18.0.mpp
 
 # Verify the extension's reflection against a real Chess.com APKM (desktop JVM)
 scripts/verify_apk.sh com.chess_4.10.17.apkm com.google.android.xh4
+
+# Patch a real APKM with the local .mpp (DUMP=1 also disassembles the result)
+scripts/patch_apk.sh out/patches-1.18.0.mpp com.chess_4.10.17.apkm
 ```
 
 ---

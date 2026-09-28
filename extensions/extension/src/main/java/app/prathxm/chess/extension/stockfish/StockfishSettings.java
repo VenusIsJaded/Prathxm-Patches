@@ -208,6 +208,27 @@ public class StockfishSettings {
         getPrefs(context).edit().putBoolean(KEY_SHOW_MATE_ANNOUNCEMENT, enabled).apply();
     }
 
+    private static final String KEY_SHOW_ENGINE_INFO = "show_engine_info";
+
+    /** Small "depth · score" line above the board, next to the W/D/L bar. */
+    public static boolean isEngineInfoEnabled(Context context) {
+        return getPrefs(context).getBoolean(KEY_SHOW_ENGINE_INFO, false);
+    }
+
+    public static void setEngineInfoEnabled(Context context, boolean enabled) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_ENGINE_INFO, enabled).apply();
+    }
+
+    /** Restores every engine setting to its default (the tour flag is kept). */
+    public static void resetToDefaults(Context context) {
+        boolean tour = isTourShown(context);
+        boolean warning = isWarningAccepted(context);
+        getPrefs(context).edit().clear()
+                .putBoolean(KEY_TOUR_SHOWN, tour)
+                .putBoolean(KEY_WARNING_ACCEPTED, warning)
+                .apply();
+    }
+
     private static final String KEY_TOUR_SHOWN = "stockfish_tour_shown";
 
     public static boolean isTourShown(Context context) {

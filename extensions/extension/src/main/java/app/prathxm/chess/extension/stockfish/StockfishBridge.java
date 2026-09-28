@@ -161,10 +161,16 @@ public class StockfishBridge {
         if (cached != null) return cached;
 
         if (!ensureRunning(ctx)) return StockfishProcess.AnalysisResult.empty();
-        StockfishProcess.AnalysisResult r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
-        if (!r.isValid() && !engine.isReady()) {
-            // Engine crashed on this position; restart once and retry.
-            if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
+        StockfishProcess.AnalysisResult r;
+        liveSearchRunning = true;
+        try {
+            r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
+            if (!r.isValid() && !engine.isReady()) {
+                // Engine crashed on this position; restart once and retry.
+                if (ensureRunning(ctx)) r = engine.analyze(ctx, fen, null, depth, multiPV, 0, true, progress);
+            }
+        } finally {
+            liveSearchRunning = false;
         }
         putCache(fen, r, depth, multiPV, limited);
         return r;
@@ -213,9 +219,16 @@ public class StockfishBridge {
         return moves.isEmpty() ? null : moves.get(0);
     }
 
-    /** Interrupt an ongoing search. Deliberately not synchronized. */
+    /** True while a live-analysis search (not a Game Review search) owns the engine. */
+    private static volatile boolean liveSearchRunning = false;
+
+    /**
+     * Interrupt the running live-analysis search. Deliberately not synchronized. Does nothing
+     * while the Game Review is searching: browsing the review board starts live analysis,
+     * and its "stop" used to cut the review's own search short (shallow, wrong ratings).
+     */
     public static void stopSearch() {
-        if (initialised) engine.stopSearch();
+        if (initialised && liveSearchRunning) engine.stopSearch();
     }
 
     public static synchronized void quit() {

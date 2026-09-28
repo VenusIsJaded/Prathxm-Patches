@@ -1,3 +1,26 @@
+## [1.18.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/6) (2026-09-28)
+
+### ✨ Features
+
+* **Chess.com:** optional **depth & score readout** above the board (`d22 · +0.35`, `d18 · M3`), next to the W/D/L bar
+* **Chess.com:** **smoother evaluation bar**: win-probability scale (like Lichess), animated changes, a 0.00 tick, `#` for checkmate and locale-independent numbers
+* **Chess.com:** **Reset engine settings to defaults** button in Engine Settings
+
+### 🐛 Bug Fixes
+
+* **Chess.com:** fair play: engine overlays were hidden on offline screens (coach, train, pass-and-play, endgames, finished games) and **not** hidden on Chess TV / Watch; online game screens are now matched by their exact 4.10.17 names
+* **Chess.com:** Lichess Puzzles no longer marks every user as a **guest** (it hooked `SessionStore.i()` "is guest" and `u()` "live-chess priority" instead of the premium check `w()`)
+* **Chess.com:** live analysis sends the **real FEN** (half-move clock and move number), so the 50-move rule is seen
+* **Chess.com:** the evaluation bar follows **manual board flips**
+* **Chess.com:** browsing the board during a Game Review no longer cuts the review's searches short
+* **Chess.com:** move toasts rate **promotions** correctly
+* **Chess.com:** a failed puzzle-database download no longer wipes the existing puzzles and progress
+
+### 🔧 Improvements
+
+* **Chess.com:** the current screen is tracked through lifecycle callbacks instead of walking hidden framework fields many times per move
+* **Build:** new `scripts/patch_apk.sh` patches a real APK with a local `.mpp` (temporary files on disk); the verification harness checks every new reflection path against the real 4.10.17 classes
+
 ## [1.17.0](https://github.com/VenusIsJaded/Prathxm-Patches/pull/5) (2026-09-27)
 
 ### ✨ Features

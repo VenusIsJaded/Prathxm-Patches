@@ -66,7 +66,17 @@ public class StockfishExtension {
         });
     }
 
+    /** Resumed activity, tracked by the lifecycle callbacks (cheap, no hidden-API reflection). */
+    private static volatile WeakReference<Activity> resumedActivity = new WeakReference<>(null);
+
     public static Activity getCurrentActivity() {
+        Activity tracked = resumedActivity.get();
+        if (tracked != null && !tracked.isFinishing()) return tracked;
+        return findResumedActivityReflectively();
+    }
+
+    /** Fallback before the callbacks run: ActivityThread.mActivities (hidden API, slow). */
+    private static Activity findResumedActivityReflectively() {
         try {
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object activityThread = activityThreadClass.getMethod("currentActivityThread").invoke(null);
@@ -222,6 +232,7 @@ public class StockfishExtension {
             OverlayManager.hideEvalBar();
             OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
+            OverlayManager.hideEngineInfo();
             return;
         }
 
@@ -452,6 +463,12 @@ public class StockfishExtension {
             OverlayManager.hideWdlBar();
         }
 
+        if (!disableOverlays && StockfishSettings.isEngineInfoEnabled(context)) {
+            OverlayManager.updateEngineInfo(result.depth, result.score, result.hasMate, result.mateIn);
+        } else {
+            OverlayManager.hideEngineInfo();
+        }
+
         if (!isFinal) return;
         if (!disableOverlays && result.hasMate && StockfishSettings.isMateAnnouncementEnabled(context)) {
             OverlayManager.showMateAnnouncement(result.mateIn);
@@ -490,11 +507,14 @@ public class StockfishExtension {
 
             @Override
             public void onActivityResumed(Activity activity) {
+                resumedActivity = new WeakReference<>(activity);
                 GestureInterceptor.registerGestureInterceptor(activity);
             }
 
             @Override
-            public void onActivityPaused(Activity activity) {}
+            public void onActivityPaused(Activity activity) {
+                if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
+            }
 
             @Override
             public void onActivityStopped(Activity activity) {}
@@ -523,6 +543,7 @@ public class StockfishExtension {
             OverlayManager.hideEvalBar();
             OverlayManager.hideWdlBar();
             OverlayManager.hideMateAnnouncement();
+            OverlayManager.hideEngineInfo();
         } else {
             triggerAnalysisForCurrentState();
         }
@@ -634,7 +655,57 @@ public class StockfishExtension {
         return null;
     }
 
+    /** Cached {@code variants.d.o()}: the position's full FEN (lazy property "fen" in 4.10.17). */
+    private static volatile Method fullFenMethod;
+    private static volatile boolean fullFenResolved;
+
+    /**
+     * FEN of an app position. Uses the app's own full FEN (with the real half-move clock and
+     * move number, so Stockfish sees the 50-move rule), and falls back to assembling it from
+     * FenUtilsKt with "0 1" counters.
+     */
     public static String extractFen(Object position) {
+        if (position == null) return null;
+        String full = fullFen(position);
+        if (full != null) return full;
+        return assembleFen(position);
+    }
+
+    static String fullFen(Object position) {
+        try {
+            if (!fullFenResolved) {
+                Method found = null;
+                try {
+                    Method o = Class.forName("com.chess.chessboard.variants.d").getMethod("o");
+                    if (o.getReturnType() == String.class) found = o;
+                } catch (Throwable ignored) {}
+                fullFenMethod = found;
+                fullFenResolved = true;
+            }
+            Method m = fullFenMethod;
+            if (m == null || !m.getDeclaringClass().isInstance(position)) return null;
+            Object r = m.invoke(position);
+            return r instanceof String ? sanitizeFen((String) r) : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Returns the FEN if it has 6 well-formed fields, otherwise null. */
+    static String sanitizeFen(String fen) {
+        if (fen == null) return null;
+        String[] p = fen.trim().split("\\s+");
+        if (p.length != 6 || p[0].split("/", -1).length != 8) return null;
+        if (!(p[1].equals("w") || p[1].equals("b"))) return null;
+        try {
+            if (Integer.parseInt(p[4]) < 0 || Integer.parseInt(p[5]) < 1) return null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return p[0] + ' ' + p[1] + ' ' + p[2] + ' ' + p[3] + ' ' + p[4] + ' ' + p[5];
+    }
+
+    private static String assembleFen(Object position) {
         try {
             Class<?> posExtKt = Class.forName(
                 "com.chess.chessboard.variants.standard.bitboard.FenUtilsKt");
@@ -744,28 +815,67 @@ public class StockfishExtension {
         return false;
     }
 
+    /**
+     * Screens where a game against another human is in progress (or being watched live) in
+     * Chess.com 4.10.17. Engine overlays are never shown on these (fair play).
+     */
+    private static final java.util.Set<String> ONLINE_GAME_ACTIVITIES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.chess.realchess.ui.game.RealGameActivity",                  // live game
+            "com.chess.realchess.ui.wait.WaitGameActivity",                  // live seek
+            "com.chess.realchess.ui.wait.LiveGameSeekV6Activity",            // live seek
+            "com.chess.features.daily.DailyGameActivity",                    // daily (correspondence) game
+            "com.chess.waitgame.daily.DailyGameSeekActivity",                // daily seek
+            "com.chess.features.connectedboards.ConnectedBoardGameActivity", // online game on an e-board
+            "com.chess.features.puzzles.battle.PuzzlesBattleGameActivity",   // puzzle battle vs a human
+            "com.chess.chesstv.ChessTvActivity",                             // watching live games
+            "com.chess.features.more.watch.WatchActivity"                    // watching live games
+    ));
+
+    /** Screens that host a board but never an online game (bots, coach, analysis, archives...). */
+    private static final java.util.Set<String> OFFLINE_BOARD_ACTIVITIES = new java.util.HashSet<>(java.util.Arrays.asList(
+            "com.chess.features.versusbots.game.BotGameActivityV2",
+            "com.chess.features.versusbots.archive.ArchivedBotGameActivityV2",
+            "com.chess.features.guidedcoachgame.GuidedCoachGameActivity",
+            "com.chess.features.train.TrainGameActivity",
+            "com.chess.practice.play.PracticePlayGameActivity",
+            "com.chess.endgames.practice.EndgamePracticeGameActivity",
+            "com.chess.endgames.challenge.EndgameChallengeGameActivity",
+            "com.chess.passandplay.PassAndPlayActivity",
+            "com.chess.features.live.archive.ArchivedLiveGameActivity",      // finished live games
+            "com.chess.diagrams.game.DiagramGameActivity",
+            "com.chess.features.explorer.GameExplorerActivity",
+            "com.chess.gamereview.v2.GameReviewActivity",
+            "com.chess.features.analysis.standalone.StandaloneAnalysisActivity",
+            "com.chess.features.analysis.standalonev2.StandaloneAnalysisActivityV2",
+            "com.chess.features.analysis.selfengineless.AnalysisSelfEnginelessActivity"
+    ));
+
+    /**
+     * Fair-play gate: true if {@code activity} is an online game against a human (or a live
+     * game being watched), where engine overlays must stay off.
+     *
+     * <p>Exact 4.10.17 class names are checked first. The old substring heuristic misfired on
+     * real screens: it blocked coach, train, pass-and-play, endgame and finished-game screens
+     * (any name containing "GameActivity"), and let Chess TV / Watch through. For screens in
+     * neither list only online-only packages count as live.
+     */
     public static boolean isLiveMatch(Activity activity) {
         if (isDeveloperMode) return false;
         if (activity == null) return false;
-        String name = activity.getClass().getName();
-        String lower = name.toLowerCase();
-        
-        if (lower.contains("computer") || lower.contains("bot") || lower.contains("practice") ||
-            lower.contains("analysis") || lower.contains("review") || lower.contains("local") ||
-            lower.contains("solo") || lower.contains("tutorial") || lower.contains("puzzle")) {
-            return false;
-        }
-        
-        if (lower.contains("playactivity") || lower.contains("gameactivity") || lower.contains("live")) {
-            isReviewMode = false;
-            return true;
-        }
-        
-        if (lower.contains(".play.")) {
-            isReviewMode = false;
-            return true;
-        }
-        return false;
+        boolean live = isOnlineGameActivity(activity.getClass().getName());
+        if (live) isReviewMode = false;
+        return live;
+    }
+
+    static boolean isOnlineGameActivity(String name) {
+        if (name == null) return false;
+        if (ONLINE_GAME_ACTIVITIES.contains(name)) return true;
+        if (OFFLINE_BOARD_ACTIVITIES.contains(name)) return false;
+        return name.startsWith("com.chess.realchess.")
+                || name.startsWith("com.chess.features.daily.")
+                || name.startsWith("com.chess.waitgame.")
+                || name.startsWith("com.chess.chesstv.")
+                || name.startsWith("com.chess.features.connectedboards.");
     }
 
     /**

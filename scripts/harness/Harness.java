@@ -247,6 +247,43 @@ public class Harness {
         check("isUserWhite(state playing BLACK) == false", Boolean.FALSE.equals(StockfishExtension.isUserWhite(stateObj)),
                 stateObj != null ? StockfishExtension.isUserWhite(stateObj) : null);
 
+        // ── 10b. Full FEN from the app position (real half-move clock / move number) ───────
+        String full0 = StockfishExtension.fullFen(start);
+        check("fullFen(start) via variants.d.o()", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".equals(full0), full0);
+        Object after8 = moves.get(7).getClass().getMethod("b").invoke(moves.get(7));
+        String full8 = StockfishExtension.extractFen(after8);
+        check("extractFen after 4...Nf6 has move number 5", full8 != null && full8.endsWith(" w kq - 2 5"), full8);
+        check("sanitizeFen rejects garbage", StockfishExtension.sanitizeFen("8/8 w - - 0 1") == null
+                && StockfishExtension.sanitizeFen("8/8/8/8/8/8/8/8 x - - 0 1") == null, null);
+
+        // ── 10c. Eval bar orientation reads getFlipBoard() ─────────────────────────────
+        check("isBoardFlipped(state) uses getFlipBoard", stateObj != null && !OverlayManager.isBoardFlipped(stateObj), null);
+
+        // ── 10d. Fair-play screen lists: every listed class exists in this APK ──────────
+        for (String setName : new String[]{"ONLINE_GAME_ACTIVITIES", "OFFLINE_BOARD_ACTIVITIES"}) {
+            @SuppressWarnings("unchecked")
+            java.util.Set<String> names = (java.util.Set<String>) field(StockfishExtension.class, setName);
+            List<String> missing = new ArrayList<>();
+            for (String n : names) {
+                try { Class.forName(n, false, Harness.class.getClassLoader()); } catch (Throwable e) { missing.add(n); }
+            }
+            check(setName + " all exist in the app", missing.isEmpty(), missing);
+        }
+        check("live game is online", StockfishExtension.isOnlineGameActivity("com.chess.realchess.ui.game.RealGameActivity"), null);
+        check("Chess TV is online", StockfishExtension.isOnlineGameActivity("com.chess.chesstv.ChessTvActivity"), null);
+        check("bot game is offline", !StockfishExtension.isOnlineGameActivity("com.chess.features.versusbots.game.BotGameActivityV2"), null);
+        check("coach game is offline", !StockfishExtension.isOnlineGameActivity("com.chess.features.guidedcoachgame.GuidedCoachGameActivity"), null);
+        check("finished live game is offline", !StockfishExtension.isOnlineGameActivity("com.chess.features.live.archive.ArchivedLiveGameActivity"), null);
+
+        // ── 10e. Move toast deduction, eval bar scale, engine info label ─────────────────
+        check("promotion deduced as a7a8q", "a7a8q".equals(MoveClassifier.deduceUciMove("8/P7/8/8/8/8/8/k6K w", "Q7/8/8/8/8/8/8/k6K b")), null);
+        check("castling deduced as e1g1", "e1g1".equals(MoveClassifier.deduceUciMove("r3k2r/8/8/8/8/8/8/R3K2R w", "r3k2r/8/8/8/8/8/8/R4RK1 b")), null);
+        check("eval bar scale", EvalBarView.ratioFor(0f) == 0.5f && EvalBarView.ratioFor(99f) == 1f
+                && EvalBarView.ratioFor(1f) > 0.55f && "0.4".equals(EvalBarView.formatScore(-0.4f)), EvalBarView.ratioFor(1f));
+        check("engine info label", "d22 \u00B7 +0.35".equals(OverlayManager.formatEngineInfo(22, 0.35f, false, 0))
+                && "d18 \u00B7 -M2".equals(OverlayManager.formatEngineInfo(18, -97f, true, -2)),
+                OverlayManager.formatEngineInfo(22, 0.35f, false, 0));
+
         // ── 11. Game Review through the app's REAL coroutine / Flow machinery ───────────────
         // The Game Review flow is wrapped in kotlinx flow{} (SafeCollector) and collected by
         // runBlocking on another thread, exactly like the app. Before the fix this reproduced the

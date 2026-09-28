@@ -65,17 +65,22 @@ object PuzzleOfflineLimitSetFingerprint : Fingerprint(
     }
 )
 
-object SessionStorePremiumFingerprint1 : Fingerprint(
+// SessionStore.w() = isAtLeastGold (PremiumStatusKt.isAtLeastGold(K())), the premium check
+// PuzzlePaywallGate and the puzzle screens use. Matched by body, not by the obfuscated name.
+//
+// The old fingerprints hooked i() and u() by name. In 4.10.17 those are NOT premium checks:
+// i() is "is guest" (!a(), a() = session is a RegisteredUser) and u() is has_lc_priority
+// (live-chess server routing). Forcing i() to true made every user a guest whenever Ad-Free
+// was disabled (Ad-Free overrides SharedPreferencesSessionStore.i()).
+object SessionStoreIsAtLeastGoldFingerprint : Fingerprint(
     definingClass = "Lcom/chess/net/v1/users/SessionStore;",
-    name = "i",
-    returnType = "Z"
-)
-
-object SessionStorePremiumFingerprint2 : Fingerprint(
-    custom = { method, classDef ->
-        classDef.type == "Lcom/chess/net/v1/users/SessionStore;" &&
-            (method.name == "t" || method.name == "u" || method.name == "w") &&
-            method.parameterTypes.isEmpty() &&
-            method.returnType == "Z"
+    returnType = "Z",
+    parameters = listOf(),
+    custom = { method, _ ->
+        method.implementation?.instructions?.any { insn ->
+            val ref = (insn as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference
+            ref is com.android.tools.smali.dexlib2.iface.reference.MethodReference &&
+                ref.name == "isAtLeastGold" && ref.definingClass == "Lcom/chess/entities/PremiumStatusKt;"
+        } == true
     }
 )

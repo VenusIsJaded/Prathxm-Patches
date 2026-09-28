@@ -121,10 +121,9 @@ public class PuzzleDownloadManager {
         new Thread(() -> {
             File tempFile = new File(activity.getCacheDir(), "temp_lichess_puzzles.gz");
             try {
-                if (dbHelper != null) {
-                    dbHelper.clearAllPuzzles();
-                }
-
+                // The existing puzzles (and solved progress) are only replaced once the new file
+                // has been downloaded completely. Clearing first left the user with an empty
+                // database whenever the download failed (offline, timeout, server error).
                 String fileSuffix;
                 if (selectedDownloadLimit == 20000) {
                     fileSuffix = "_20k.csv.gz";
@@ -190,6 +189,13 @@ public class PuzzleDownloadManager {
                 fos.close();
                 input.close();
                 connection.disconnect();
+                if (fileLength > 0 && bytesRead != fileLength) {
+                    throw new java.io.IOException("Download incomplete (" + bytesRead + " of " + fileLength + " bytes)");
+                }
+
+                if (dbHelper != null) {
+                    dbHelper.clearAllPuzzles();
+                }
 
                 // Phase 2: Local Import to SQLite
                 showDownloadProgress("Preparing database import...", 0);

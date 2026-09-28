@@ -14,7 +14,7 @@
 # Usage: scripts/build_mpp_local.sh [version]
 set -euo pipefail
 
-VERSION="${1:-1.17.0}"
+VERSION="${1:-1.18.0}"
 BASE_RELEASE="v1.13.1"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${WORK_DIR:-$HOME/mpp-build}"

@@ -123,16 +123,8 @@ val lichessPuzzlePatch = bytecodePatch(
             """
         )
 
-        // Bypass SessionStore premium checks (i() and t() methods)
-        SessionStorePremiumFingerprint1.method.addInstructions(
-            0,
-            """
-                const/4 v0, 0x1
-                return v0
-            """
-        )
-
-        SessionStorePremiumFingerprint2.method.addInstructions(
+        // Puzzles treat the user as Gold or better (the real premium check, see Fingerprints.kt)
+        SessionStoreIsAtLeastGoldFingerprint.method.addInstructions(
             0,
             """
                 const/4 v0, 0x1
