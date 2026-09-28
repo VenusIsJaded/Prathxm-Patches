@@ -218,6 +218,28 @@ public class Harness {
         Object sub = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.submitDailyPuzzleAction(123L, null, null);
         check("SubmitDailyPuzzleActionResponse built", sub != null && sub.getClass().getName().endsWith("SubmitDailyPuzzleActionResponse"), sub);
 
+        // Lichess sends UCI solutions; the app's PGN parser rejects bare UCI, so the movetext
+        // is converted first. Every case must parse and reach the expected final position.
+        Method uciToPgn = app.prathxm.chess.extension.lichesspuzzle.LichessPuzzleExtension.class
+                .getDeclaredMethod("uciToPgnMovetext", String.class, List.class);
+        uciToPgn.setAccessible(true);
+        String[][] puzzleCases = {
+                {"1r4k1/6pp/p7/5r2/2pQ4/q4P2/P1P4P/K2R2R1 b - - 1 1", "a3a2 a1a2 f5a5", "1r4k1/6pp/p7/r7/2pQ4/5P2/K1P4P/3R2R1 w"},
+                {"r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R w KQkq - 0 10", "e1c1 e8g8 d2d7", "r4rk1/pppQ1ppp/8/8/8/8/PPP2PPP/2KR3R b"},
+                {"8/P6k/8/8/8/8/6pK/8 w - - 0 50", "a7a8q g2g1n h2g1", "Q7/7k/8/8/8/8/8/6K1 b"},
+                {"rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq f6 0 3", "e5f6 g8f6", "rnbqkb1r/ppp1p1pp/5n2/3p4/8/8/PPPP1PPP/RNBQKBNR w"}};
+        for (String[] pc : puzzleCases) {
+            String mt = (String) uciToPgn.invoke(null, pc[0], Arrays.asList(pc[1].split(" ")));
+            String end = null;
+            try {
+                Object pg = parse.invoke(null, "[FEN \"" + pc[0] + "\"]\n[SetUp \"1\"]\n\n" + mt + " *", true, true, fenTypeC);
+                List<?> pMoves = (List<?>) pg.getClass().getMethod("b").invoke(pg);
+                Object lastMv = pMoves.get(pMoves.size() - 1);
+                end = StockfishExtension.extractFen(lastMv.getClass().getMethod("b").invoke(lastMv));
+            } catch (Throwable e) { end = "parse error: " + e.getCause(); }
+            check("Lichess UCI solution parses (" + pc[1] + ")", end != null && end.startsWith(pc[2]), mt + " -> " + end);
+        }
+
         // ── 9. Custom titles ──────────────────────────────────────────────────────────
         Class<?> palette = Class.forName("com.chess.palette.compose.component.ChessTitle");
         check("palette ChessTitle enum", palette.isEnum() && palette.getEnumConstants().length > 0, palette.getEnumConstants().length);
