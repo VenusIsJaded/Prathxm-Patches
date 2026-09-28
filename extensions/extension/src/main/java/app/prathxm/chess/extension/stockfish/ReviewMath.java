@@ -146,6 +146,44 @@ public final class ReviewMath {
         return !(MISTAKE.equals(c) || BLUNDER.equals(c) || MISS.equals(c) || FORCED.equals(c));
     }
 
+    /**
+     * Report-card "performance" for an accuracy (0..100). The review parses this field as a
+     * move classification (com.chess.compengine.a.a, used by f1.f for CategoryRating), so it
+     * must be one of the classification names; the old grade words ("Great", "Fair", "Poor")
+     * did not map to anything and the app fell back to its own guess.
+     */
+    public static String performance(float acc) {
+        if (acc >= 97) return BRILLIANT;
+        if (acc >= 92) return GREAT;
+        if (acc >= 85) return BEST;
+        if (acc >= 75) return EXCELLENT;
+        if (acc >= 62) return GOOD;
+        if (acc >= 48) return INACCURACY;
+        if (acc >= 35) return MISTAKE;
+        return BLUNDER;
+    }
+
+    /**
+     * Tactics score (0..100): overall accuracy nudged by critical moments. Tally order is
+     * MovesTally (book, brilliant, great, best, excellent, good, inaccuracy, mistake, blunder,
+     * forced, miss).
+     */
+    public static float tacticsScore(float overall, int[] t) {
+        float s = overall + 4f * t[1] + 2f * t[2] - 2f * t[7] - 5f * t[8] - 3f * t[10];
+        return Math.max(0f, Math.min(100f, s));
+    }
+
+    /** One-line game summary for the report card, e.g. "Ruy Lopez · White 91.2% vs Black 78.4%". */
+    public static String summary(float wAcc, float bAcc, int[] w, int[] b, String opening) {
+        StringBuilder sb = new StringBuilder();
+        if (opening != null && !opening.isEmpty()) sb.append(opening).append(" \u00B7 ");
+        sb.append(String.format(java.util.Locale.US, "White %.1f%% vs Black %.1f%%", wAcc, bAcc));
+        int wErr = w[8] + w[10], bErr = b[8] + b[10];
+        if (wErr + bErr == 0) sb.append(" \u00B7 no blunders");
+        else sb.append(String.format(java.util.Locale.US, " \u00B7 blunders/misses %d\u2013%d", wErr, bErr));
+        return sb.toString();
+    }
+
     public static boolean isKeyMoment(String c) {
         return BRILLIANT.equals(c) || GREAT.equals(c) || BLUNDER.equals(c) || MISTAKE.equals(c)
                 || INACCURACY.equals(c) || MISS.equals(c);

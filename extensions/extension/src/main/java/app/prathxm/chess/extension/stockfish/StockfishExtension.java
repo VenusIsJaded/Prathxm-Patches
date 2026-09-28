@@ -570,19 +570,30 @@ public class StockfishExtension {
         }
     }
 
+    /** Application context, cached after the first successful lookup (it never changes). */
+    private static volatile Context appContext;
+
+    /**
+     * The Application. Called many times per move and from hot getters (ads, premium), so the
+     * reflective ActivityThread lookup runs only until it first succeeds.
+     */
     public static Context getContext() {
-        try {
-            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
-            Method currentApplicationMethod = activityThreadClass.getMethod("currentApplication");
-            Context ctx = (Context) currentApplicationMethod.invoke(null);
-            if (ctx != null && !engineReady) {
-                ensureEngineReady();
+        Context ctx = appContext;
+        if (ctx == null) {
+            try {
+                Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+                Method currentApplicationMethod = activityThreadClass.getMethod("currentApplication");
+                ctx = (Context) currentApplicationMethod.invoke(null);
+                if (ctx != null) appContext = ctx;
+            } catch (Throwable t) {
+                Log.e(TAG, "getContext failed: " + t.getMessage());
+                return null;
             }
-            return ctx;
-        } catch (Throwable t) {
-            Log.e(TAG, "getContext failed: " + t.getMessage());
         }
-        return null;
+        if (ctx != null && !engineReady) {
+            ensureEngineReady();
+        }
+        return ctx;
     }
 
     public static Object getStateImpl() {

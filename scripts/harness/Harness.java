@@ -338,6 +338,21 @@ public class Harness {
         }
         check("every review classification string maps to the app enum", unmapped.isEmpty(), unmapped);
         check("\"book\" string maps to AnalysisMoveClassification.BOOK", bookMapped, null);
+        // Report card: f1.f maps CategoryRating.category via f1.W and parses performance as a
+        // classification. Every category we emit must map, and every performance must parse.
+        Method catW = Class.forName("com.chess.gamereview.v2.f1").getDeclaredMethod("W", String.class);
+        catW.setAccessible(true);
+        List<String> badCats = new ArrayList<>();
+        for (String c : new String[]{"Opening", "Middlegame", "Endgame", "Tactics"}) if (catW.invoke(null, c) == null) badCats.add(c);
+        check("report-card categories map to ReportCardCategory", badCats.isEmpty(), badCats);
+        List<String> badPerf = new ArrayList<>();
+        for (int acc = 0; acc <= 100; acc += 5) {
+            String perf = ReviewMath.performance(acc);
+            if (fromString.invoke(null, companion, perf) == null) badPerf.add(acc + "=" + perf);
+        }
+        check("report-card performance parses as a classification", badPerf.isEmpty(), badPerf);
+        String sum = ReviewMath.summary(91.24f, 78.4f, new int[11], new int[]{0,0,0,0,0,0,0,0,2,0,1}, "Ruy Lopez");
+        check("report-card summary", sum.startsWith("Ruy Lopez") && sum.contains("91.2%") && sum.contains("0\u20133"), sum);
         check("book only replaces non-errors", ReviewMath.isBookEligible(ReviewMath.EXCELLENT)
                 && !ReviewMath.isBookEligible(ReviewMath.BLUNDER) && !ReviewMath.isBookEligible(ReviewMath.MISTAKE), null);
 

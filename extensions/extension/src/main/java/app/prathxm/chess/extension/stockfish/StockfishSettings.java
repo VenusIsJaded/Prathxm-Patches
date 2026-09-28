@@ -18,8 +18,17 @@ public class StockfishSettings {
     private static final String KEY_ARROW_COLOR = "arrow_color";
     private static final String KEY_ADS_REMOVED = "ads_removed";
 
+    private static volatile SharedPreferences prefs;
+
+    /** Settings are read many times per analysed position, so the instance is kept. */
     private static SharedPreferences getPrefs(Context context) {
-        return context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+        SharedPreferences p = prefs;
+        if (p == null) {
+            Context app = context.getApplicationContext();
+            p = (app != null ? app : context).getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            prefs = p;
+        }
+        return p;
     }
 
     public static boolean isAdsRemoved(Context context) {
