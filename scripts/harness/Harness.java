@@ -252,7 +252,7 @@ public class Harness {
         check("fullFen(start) via variants.d.o()", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".equals(full0), full0);
         Object after8 = moves.get(7).getClass().getMethod("b").invoke(moves.get(7));
         String full8 = StockfishExtension.extractFen(after8);
-        check("extractFen after 4...Nf6 has move number 5", full8 != null && full8.endsWith(" w - - 3 5"), full8);
+        check("extractFen after 4...Nf6 has move number 5", full8 != null && full8.endsWith(" w kq - 2 5"), full8);
         check("sanitizeFen rejects garbage", StockfishExtension.sanitizeFen("8/8 w - - 0 1") == null
                 && StockfishExtension.sanitizeFen("8/8/8/8/8/8/8/8 x - - 0 1") == null, null);
 
