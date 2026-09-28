@@ -142,6 +142,13 @@ public class MoveClassifier {
         return "" + file + rank;
     }
 
+    /** UCI promotion letter ("q", "n", ...) when a pawn turned into another piece, else "". */
+    private static String promotionSuffix(char before, char after) {
+        if (Character.toLowerCase(before) != 'p') return "";
+        char a = Character.toLowerCase(after);
+        return (a == 'q' || a == 'r' || a == 'b' || a == 'n') ? String.valueOf(a) : "";
+    }
+
     public static String deduceUciMove(String prevFen, String currFen) {
         try {
             String[] prevParts = prevFen.split("\\s+");
@@ -177,7 +184,8 @@ public class MoveClassifier {
             }
 
             if (fromCandidates.size() == 1 && toCandidates.size() == 1) {
-                return getSquareName(fromCandidates.get(0)) + getSquareName(toCandidates.get(0));
+                int f = fromCandidates.get(0), t = toCandidates.get(0);
+                return getSquareName(f) + getSquareName(t) + promotionSuffix(prevBoard.charAt(f), currBoard.charAt(t));
             }
 
             if (fromCandidates.size() >= 1 && toCandidates.size() >= 1) {
@@ -207,7 +215,7 @@ public class MoveClassifier {
                         char prevPiece = prevBoard.charAt(f);
                         if (Character.toLowerCase(prevPiece) == Character.toLowerCase(movedPiece) ||
                             (Character.toLowerCase(prevPiece) == 'p' && (movedPiece == 'Q' || movedPiece == 'q' || movedPiece == 'R' || movedPiece == 'r' || movedPiece == 'B' || movedPiece == 'b' || movedPiece == 'N' || movedPiece == 'n'))) {
-                            return getSquareName(f) + getSquareName(toIdx);
+                            return getSquareName(f) + getSquareName(toIdx) + promotionSuffix(prevPiece, movedPiece);
                         }
                     }
                 }
