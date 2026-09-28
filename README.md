@@ -103,7 +103,7 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 
 # Build the .mpp without registry access (compiles patches + extension, bundles Stockfish 19)
 scripts/setup_tools.sh               # one-time: JDK 17, kotlinc, morphe-cli, smali, dex2jar
-scripts/build_mpp_local.sh 1.17.0   # output: out/patches-1.17.0.mpp
+scripts/build_mpp_local.sh 1.18.0   # output: out/patches-1.18.0.mpp
 
 # Verify the extension's reflection against a real Chess.com APKM (desktop JVM)
 scripts/verify_apk.sh com.chess_4.10.17.apkm com.google.android.xh4
