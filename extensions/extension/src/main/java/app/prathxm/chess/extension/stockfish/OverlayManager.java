@@ -290,7 +290,10 @@ public class OverlayManager {
         if (stateImpl == null) return false;
         try {
             for (Method m : stateImpl.getClass().getMethods()) {
-                if ((m.getName().equals("isFlipped") || m.getName().equals("getFlipped")) && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
+                // 4.10.17: CBViewModelStateImpl.getFlipBoard() (also follows manual flips)
+                String n = m.getName();
+                if ((n.equals("getFlipBoard") || n.equals("isFlipped") || n.equals("getFlipped"))
+                        && m.getParameterCount() == 0 && m.getReturnType() == boolean.class) {
                     return (boolean) m.invoke(stateImpl);
                 }
             }

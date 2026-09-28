@@ -66,7 +66,17 @@ public class StockfishExtension {
         });
     }
 
+    /** Resumed activity, tracked by the lifecycle callbacks (cheap, no hidden-API reflection). */
+    private static volatile WeakReference<Activity> resumedActivity = new WeakReference<>(null);
+
     public static Activity getCurrentActivity() {
+        Activity tracked = resumedActivity.get();
+        if (tracked != null && !tracked.isFinishing()) return tracked;
+        return findResumedActivityReflectively();
+    }
+
+    /** Fallback before the callbacks run: ActivityThread.mActivities (hidden API, slow). */
+    private static Activity findResumedActivityReflectively() {
         try {
             Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
             Object activityThread = activityThreadClass.getMethod("currentActivityThread").invoke(null);
@@ -490,11 +500,14 @@ public class StockfishExtension {
 
             @Override
             public void onActivityResumed(Activity activity) {
+                resumedActivity = new WeakReference<>(activity);
                 GestureInterceptor.registerGestureInterceptor(activity);
             }
 
             @Override
-            public void onActivityPaused(Activity activity) {}
+            public void onActivityPaused(Activity activity) {
+                if (resumedActivity.get() == activity) resumedActivity = new WeakReference<>(null);
+            }
 
             @Override
             public void onActivityStopped(Activity activity) {}
@@ -634,7 +647,57 @@ public class StockfishExtension {
         return null;
     }
 
+    /** Cached {@code variants.d.o()}: the position's full FEN (lazy property "fen" in 4.10.17). */
+    private static volatile Method fullFenMethod;
+    private static volatile boolean fullFenResolved;
+
+    /**
+     * FEN of an app position. Uses the app's own full FEN (with the real half-move clock and
+     * move number, so Stockfish sees the 50-move rule), and falls back to assembling it from
+     * FenUtilsKt with "0 1" counters.
+     */
     public static String extractFen(Object position) {
+        if (position == null) return null;
+        String full = fullFen(position);
+        if (full != null) return full;
+        return assembleFen(position);
+    }
+
+    static String fullFen(Object position) {
+        try {
+            if (!fullFenResolved) {
+                Method found = null;
+                try {
+                    Method o = Class.forName("com.chess.chessboard.variants.d").getMethod("o");
+                    if (o.getReturnType() == String.class) found = o;
+                } catch (Throwable ignored) {}
+                fullFenMethod = found;
+                fullFenResolved = true;
+            }
+            Method m = fullFenMethod;
+            if (m == null || !m.getDeclaringClass().isInstance(position)) return null;
+            Object r = m.invoke(position);
+            return r instanceof String ? sanitizeFen((String) r) : null;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    /** Returns the FEN if it has 6 well-formed fields, otherwise null. */
+    static String sanitizeFen(String fen) {
+        if (fen == null) return null;
+        String[] p = fen.trim().split("\\s+");
+        if (p.length != 6 || p[0].split("/", -1).length != 8) return null;
+        if (!(p[1].equals("w") || p[1].equals("b"))) return null;
+        try {
+            if (Integer.parseInt(p[4]) < 0 || Integer.parseInt(p[5]) < 1) return null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return p[0] + ' ' + p[1] + ' ' + p[2] + ' ' + p[3] + ' ' + p[4] + ' ' + p[5];
+    }
+
+    private static String assembleFen(Object position) {
         try {
             Class<?> posExtKt = Class.forName(
                 "com.chess.chessboard.variants.standard.bitboard.FenUtilsKt");
