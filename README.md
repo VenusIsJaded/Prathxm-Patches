@@ -21,9 +21,9 @@ Full game reviews, live analysis for bots and practice, unlimited Play Coach, no
 | | |
 | :-- | :-- |
 | 🧠 **Stockfish 19 NNUE on your phone** | This is the newest official Stockfish. It uses every CPU core and a hash table sized to your RAM, and it picks the fastest instruction set your phone supports. |
-| 📊 **Accurate Game Review** | Every move is rated with a win-probability model: Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder and Miss. Reviews always run at full strength and use the full move history, so repetitions and the 50-move rule are taken into account. |
+| 📊 **Accurate Game Review** | Every move is rated with a win-probability model: Book, Brilliant, Great, Best, Excellent, Good, Inaccuracy, Mistake, Blunder and Miss. The review names the opening (offline book of 3,800+ lines) and gives Opening, Middlegame, Endgame and Tactics ratings from how you actually played each part. Reviews always run at full strength and use the full move history, so repetitions and the 50-move rule are taken into account. |
 | 🎯 **Live analysis** | Best-move arrows, an evaluation bar, a Win/Draw/Loss bar, a depth & score readout, threat arrows and mate alerts. These work in bot, coach, practice and analysis games and on finished games. |
-| 🧩 **Offline Lichess puzzles** | Millions of puzzles on a journey map, with streaks, Puzzle Rush and themed practice. |
+| 🧩 **Offline Lichess puzzles** | Millions of puzzles on a journey map, with streaks, Puzzle Rush and themed practice. The daily puzzle is the real Lichess puzzle of the day. |
 | 🚫 **Ad-free** | Banners, interstitials and video ads are removed. |
 | 🤖 **Every bot unlocked** | All Versus Bots can be played, including the premium ones. |
 | 🧑‍🏫 **Unlimited Play Coach** | Play Coach is no longer limited to one free game per day. |
@@ -104,13 +104,16 @@ Everything is controlled from the **top bar of the home screen**, where the Ches
 
 # Build the .mpp without registry access (compiles patches + extension, bundles Stockfish 19)
 scripts/setup_tools.sh               # one-time: JDK 17, kotlinc, morphe-cli, smali, dex2jar
-scripts/build_mpp_local.sh 1.18.0   # output: out/patches-1.18.0.mpp
+scripts/build_mpp_local.sh 1.19.0   # output: out/patches-1.19.0.mpp
 
 # Verify the extension's reflection against a real Chess.com APKM (desktop JVM)
 scripts/verify_apk.sh com.chess_4.10.17.apkm com.google.android.xh4
 
+# Regenerate the offline opening book (Lichess chess-openings, CC0)
+pip install chess && python3 scripts/generate_opening_book.py
+
 # Patch a real APKM with the local .mpp (DUMP=1 also disassembles the result)
-scripts/patch_apk.sh out/patches-1.18.0.mpp com.chess_4.10.17.apkm
+scripts/patch_apk.sh out/patches-1.19.0.mpp com.chess_4.10.17.apkm
 ```
 
 ---
@@ -142,6 +145,7 @@ Any phone running Android 8.0 or newer on arm64-v8a or armeabi-v7a. On 64-bit ph
 - Original project by [**PrathxmOp**](https://github.com/PrathxmOp/Prathxm-Patches)
 - [Stockfish](https://stockfishchess.org) by the Stockfish developers (GPLv3)
 - Puzzles from the [Lichess open database](https://database.lichess.org) (CC0)
+- Opening names from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings) (CC0)
 - Built for the [Morphe](https://morphe.software) patcher
 
 ## ⚖️ License & disclaimer
